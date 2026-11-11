@@ -65,6 +65,7 @@ function sanitizeSong(x){
     sections:(Array.isArray(x.sections)?x.sections:[]).filter(s=>s&&typeof s==='object').map(s=>({l:str(s.l),c:(Array.isArray(s.c)?s.c:[]).filter(l=>typeof l==='string')}))};
   if(str(x.artist)) y.artist=str(x.artist);
   if('bpm' in x){ const b=parseInt(x.bpm,10); y.bpm=(String(b)===str(x.bpm).trim()&&b>=30&&b<=300)?b:null; }
+  if('beats' in x){ const b=parseInt(x.beats,10); if(String(b)===str(x.beats).trim()&&b>=2&&b<=12) y.beats=b; }
   if(x.web===true) y.web=true;
   if(Array.isArray(x.sources)) y.sources=x.sources.filter(u=>typeof u==='string'&&/^https?:\/\//i.test(u));
   if(str(x.webNote)) y.webNote=str(x.webNote);
@@ -112,4 +113,19 @@ function unflattenGig(items){
     sets[sets.length-1].songs.push(it.k==='break'?{break:it.text}:it.song);
   });
   return sets;
+}
+
+/* ---------- auto-scroll timing ---------- */
+// One chord box between bar lines = one bar. A ×N repeat plays the bars since the previous
+// repeat (or the start of the line) N times: "│ C │ G │ /x3/ │ D │" = C G C G C G D.
+function lineBeats(line,beatsPerBar){
+  let bars=0, group=0;
+  tokens(line).forEach(x=>{ if(x.k==='ch') group++; else if(x.k==='rep'){ bars+=group*(parseInt(x.v.slice(1),10)||1); group=0; } });
+  return Math.max(1,bars+group)*(beatsPerBar||4);
+}
+// Every chord line of the song in screen order, with its start and length in beats.
+function songTimeline(sections,beatsPerBar){
+  const out=[]; let at=0;
+  (sections||[]).forEach(s=>s.c.forEach(line=>{ const b=lineBeats(line,beatsPerBar); out.push({start:at,beats:b}); at+=b; }));
+  return out;
 }

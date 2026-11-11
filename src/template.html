@@ -90,7 +90,9 @@ button,input,textarea{font:inherit;color:inherit}
 .form{display:grid;gap:12px}
 .form input,.form textarea{width:100%;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg);padding:0 12px;font-size:16px;color:var(--fg)}
 .form textarea.chart{min-height:40vh;padding:10px 12px;font-family:var(--f-chord);line-height:1.5;resize:vertical}
-.frow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.frow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.ln{border-radius:10px;cursor:pointer;transition:background .25s,box-shadow .25s}
+.ln.now{background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent-soft)}
 .hint{margin:0;color:var(--muted);font-size:14px}
 .tip{margin:0 0 12px;padding:10px 14px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent);font-size:15px}
 .help{display:grid;gap:14px}
@@ -296,7 +298,8 @@ const BG={
  'These gigs are already here: {0}. Replace them with the file, or keep both?':'Тези участия вече са тук: {0}. Да ги заменя ли с файла или да пазя и двете?',
  'Replace':'Замени','Keep both':'Пази и двете','Couldn’t read that file':'Не можах да прочета файла',
  'Welcome':'Добре дошъл','This is an example gig. Open a song and try it: change the key, tap a chord, start the metronome, swipe to the next song. Then make your own gig.':'Това е примерно участие. Отвори песен и пробвай: смени тона, натисни акорд, пусни метронома, плъзни към следващата песен. После направи свое участие.',
- 'Make my gig':'Направи моето участие','Got it':'Разбрах'
+ 'Make my gig':'Направи моето участие','Got it':'Разбрах',
+ 'Set a tempo first':'Първо задай темпо','No chords to follow':'Няма акорди за следване','Beats':'Удари','Tempo down':'Темпо надолу','Tempo up':'Темпо нагоре'
 };
 function tr(s,...a){ let r=(prefs.lang==='bg'&&BG[s])||s; a.forEach((v,i)=>{ r=r.split('{'+i+'}').join(v); }); return r; }
 const songsN=n=>n===1?tr('1 song'):tr('{0} songs',n);
@@ -304,14 +307,14 @@ function applyStatic(){
   document.documentElement.lang=prefs.lang;
   $('homeBtn').setAttribute('aria-label',tr('All songs')); $('optBtn').setAttribute('aria-label',tr('Settings'));
   $('prevBtn').querySelector('small').textContent=tr('‹ Previous'); $('nextBtn').querySelector('small').textContent=tr('Next ›');
-  $('slower').setAttribute('aria-label',tr('Scroll slower')); $('scrollBtn').setAttribute('aria-label',tr('Auto-scroll')); $('faster').setAttribute('aria-label',tr('Scroll faster'));
+  $('slower').setAttribute('aria-label',tr('Tempo down')); $('scrollBtn').setAttribute('aria-label',tr('Auto-scroll')); $('faster').setAttribute('aria-label',tr('Tempo up'));
 }
 const HELP={en:[
  ['Make a gig','Tap “Make your own gig” (or ＋ New gig). Give it a name, then add songs. Use ＋ Set and ＋ Break to split it into sets, and ↑ ↓ to change the order.'],
  ['Type a song','Write the section name on its own line, then the chords, separated by |. Add x2 at the end of a line to repeat it.<pre>Verse\nG | D | Am | C  x2\nChorus\nC | G | D | D</pre>Leave an empty line to continue a section without a new name.'],
  ['Key, capo and chords','Key − / + transposes the whole song. Capo − / + keeps the sound and changes the shapes. Tap any chord to see how to play it.'],
  ['Tempo','Tap ♩ to set the tempo, tap along with “Tap tempo”, or start the metronome. “Count in 4” clicks four beats and stops. Tap the dot at the top to stop the click.'],
- ['On stage','▶ scrolls the song by itself (− / + for speed). Swipe left or right for the next or previous song. A Bluetooth page-turner pedal works too (arrow keys or Page Up / Page Down). Turn on “Keep screen on” in Aa.'],
+ ['On stage','▶ counts you in with four clicks, then follows the song line by line at its tempo: the line you play stays near the top. − / + nudge the tempo. Tap a line to start from it, or to jump there while playing. Songs in 3/4 or 6/8: set Beats in ✎ Edit. Swipe left or right for the next or previous song. A Bluetooth page-turner pedal works too (arrow keys or Page Up / Page Down). Turn on “Keep screen on” in Aa.'],
  ['Add to Home Screen','iPhone/iPad: open in Safari, tap Share, then “Add to Home Screen”. Android: Chrome menu ⋮, then “Add to Home screen”. After the first visit it works without internet.'],
  ['Back up and share','In a gig, tap “Save gig to file” to back it up or send it to a bandmate. “Load a file” puts it on another phone. Aa › My gigs › Save all makes one backup of everything.'],
  ['Your data','Your gigs, notes and changes are saved only on this device. Nothing is sent anywhere. Clearing the browser data deletes them, so keep a backup file.']
@@ -320,7 +323,7 @@ const HELP={en:[
  ['Въведи песен','Напиши името на частта на отделен ред, после акордите, разделени с |. Добави x2 в края на реда, за да се повтори.<pre>Куплет\nG | D | Am | C  x2\nПрипев\nC | G | D | D</pre>Празен ред продължава частта без ново име.'],
  ['Тон, капо и акорди','Тон − / + транспонира цялата песен. Капо − / + пази звученето и сменя позициите. Натисни акорд, за да видиш как се хваща.'],
  ['Темпо','Натисни ♩, за да зададеш темпо, почукай с „Почукай темпо“ или пусни метронома. „Отброй 4“ брои четири удара и спира. Натисни точката горе, за да спреш метронома.'],
- ['На сцената','▶ скролва песента сама (− / + за скорост). Плъзни наляво или надясно за следваща или предишна песен. Работи и Bluetooth педал за страници (стрелки или Page Up / Page Down). Включи „Екранът да не гасне“ в Aa.'],
+ ['На сцената','▶ отброява четири удара и после следва песента ред по ред в нейното темпо: редът, който свириш, стои горе. − / + леко сменят темпото. Натисни ред, за да започнеш от него или да скочиш там по време на свирене. Песни в 3/4 или 6/8: задай Удари в ✎ Редактирай. Плъзни наляво или надясно за следваща или предишна песен. Работи и Bluetooth педал за страници (стрелки или Page Up / Page Down). Включи „Екранът да не гасне“ в Aa.'],
  ['Добави на началния екран','iPhone/iPad: отвори в Safari, натисни Сподели, после „Добави към началния екран“. Android: менюто ⋮ в Chrome, после „Добави към началния екран“. След първото отваряне работи и без интернет.'],
  ['Резервно копие и споделяне','В участие натисни „Запази във файл“, за да го пазиш или пратиш на колега. „Зареди файл“ го слага на друг телефон. Aa › Моите участия › Запази всички прави едно копие на всичко.'],
  ['Твоите данни','Участията, бележките и промените се пазят само на това устройство. Нищо не се изпраща никъде. Ако изчистиш данните на браузъра, те се трият, затова пази резервен файл.']
@@ -465,7 +468,7 @@ function renderListBody(){
 }
 
 function showSong(i){
-  if(cur!==i) stopScroll();
+  if(cur!==i){ stopScroll(); playLine=0; }
   cur=i; store.set('last-'+LIST.id,i);
   const s=SONGS[i], st=sstate(s), c0=+s.capo||0;
   const shift=st.t-(st.c-c0);
@@ -499,6 +502,7 @@ function showSong(i){
   $('prevBtn').disabled=!p; $('prevT').textContent=p?p.title:'—';
   $('nextBtn').disabled=!n; $('nextT').textContent=n?n.title:tr('End of setlist');
   if(metro.on&&metro.song!==s) metroStop();
+  syncScrollUI(); if(scrolling) markLine(playLine,false);
 }
 function rerender(){ const y=window.scrollY; showSong(cur); window.scrollTo(0,y); }
 
@@ -509,6 +513,8 @@ view.addEventListener('click',e=>{
   const s=SONGS[cur];
   const ch=e.target.closest('.ch');
   if(ch){ openChordSheet(ch.dataset.ch); return; }
+  const ln=e.target.closest('.ln');   // tap a line: start from there (or jump there while playing)
+  if(ln){ const i=playLines().indexOf(ln); playLine=i; if(scrolling){ clearTimeout(playTimer); playFrom(i); } else markLine(i,false); return; }
   const b=e.target.closest('[data-act]'); if(!b) return;
   const st=sstate(s), c0=+s.capo||0;
   switch(b.dataset.act){
@@ -599,22 +605,41 @@ async function wakeOn(){
 async function wakeOff(){ wantLock=false; try{ if(lock) await lock.release(); }catch(e){} lock=null; toast(tr('Screen can turn off')); }
 document.addEventListener('visibilitychange',async()=>{ if(wantLock&&document.visibilityState==='visible'&&!lock){ try{lock=await navigator.wakeLock.request('screen')}catch(e){} } });
 
-/* ---------- auto-scroll ---------- */
-let scrolling=false, rafId=0, lastT=0, acc=0;
-const pxPerSec=()=>6+prefs.speed*6;
-function scrollTick(t){
-  if(!scrolling) return;
-  if(lastT){ acc+=pxPerSec()*(t-lastT)/1000; const step=Math.floor(acc); if(step){ window.scrollBy(0,step); acc-=step; } }
-  lastT=t;
-  if(window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-2){ stopScroll(); toast(tr('End of song')); return; }
-  rafId=requestAnimationFrame(scrollTick);
+/* ---------- auto-scroll: counts you in, then follows the song one line at a time ---------- */
+let scrolling=false, playTimer=0, playLine=0;
+const playLines=()=>[...view.querySelectorAll('.song .ln')];
+const songBpm=()=>cur>=0?bpmOf(SONGS[cur]):null;
+function glideTo(el){
+  if(!el) return;
+  const sec=el.closest('.sec'), first=sec&&sec.querySelector('.ln')===el; // keep the section name in view
+  const top=(first?sec:el).getBoundingClientRect().top+window.scrollY-document.querySelector('.bar').getBoundingClientRect().bottom-10;
+  window.scrollTo({top:Math.max(0,top),behavior:'smooth'});
 }
-function startScroll(){ scrolling=true; lastT=0; acc=0; rafId=requestAnimationFrame(scrollTick); syncScrollUI(); if(!lock&&!wantLock) wakeOn(); }
-function stopScroll(){ scrolling=false; cancelAnimationFrame(rafId); syncScrollUI(); }
-function syncScrollUI(){ $('scroller').classList.toggle('on',scrolling); $('scrollIcon').textContent=scrolling?'❚❚':'▶'; $('scrollSpd').textContent='SPD '+prefs.speed; }
+function markLine(i,glide){ const ls=playLines(); ls.forEach((l,k)=>l.classList.toggle('now',k===i)); if(glide) glideTo(ls[i]); }
+function startScroll(){
+  if(cur<0) return;
+  const bpm=songBpm(); if(!bpm){ toast(tr('Set a tempo first')); openTempo(); return; }
+  const lines=playLines(); if(!lines.length){ toast(tr('No chords to follow')); return; }
+  if(playLine>=lines.length) playLine=0;
+  scrolling=true; syncScrollUI(); if(!lock&&!wantLock) wakeOn();
+  if(metro.on) metroStop();
+  metro.bpm=bpm; metroStart(true);                 // four clicks…
+  glideTo(lines[playLine]);
+  playTimer=setTimeout(()=>playFrom(playLine),4*60000/bpm);   // …then go
+}
+function playFrom(i){
+  if(!scrolling||cur<0) return;
+  const s=SONGS[cur], tl=songTimeline(s.sections,s.beats||4);
+  if(i>=tl.length){ stopScroll(); playLine=0; markLine(-1); toast(tr('End of song')); return; }
+  playLine=i; markLine(i,true);
+  playTimer=setTimeout(()=>playFrom(i+1),tl[i].beats*60000/songBpm());   // tempo nudges apply from the next line
+}
+function stopScroll(){ scrolling=false; clearTimeout(playTimer); syncScrollUI(); }
+function syncScrollUI(){ const b=songBpm(); $('scroller').classList.toggle('on',scrolling); $('scrollIcon').textContent=scrolling?'❚❚':'▶'; $('scrollSpd').textContent='♩ '+(b||'–'); }
+function nudgeTempo(d){ if(cur<0) return; const b=songBpm(); if(!b){ openTempo(); return; } saveS(SONGS[cur],{bpm:Math.min(240,Math.max(30,b+d))}); syncScrollUI(); }
 $('scrollBtn').onclick=()=>scrolling?stopScroll():startScroll();
-$('slower').onclick=()=>{prefs.speed=Math.max(1,prefs.speed-1);savePrefs();syncScrollUI()};
-$('faster').onclick=()=>{prefs.speed=Math.min(15,prefs.speed+1);savePrefs();syncScrollUI()};
+$('slower').onclick=()=>nudgeTempo(-1);
+$('faster').onclick=()=>nudgeTempo(1);
 syncScrollUI();
 
 /* ---------- metronome ---------- */
@@ -706,7 +731,8 @@ function openSongEditor(gigId,song){
     <label>${tr('Artist')}<input id="fArtist" value="${esc(s.artist||'')}" maxlength="80" autocomplete="off"></label>
     <div class="frow"><label>${tr('Key')}<input id="fKey" value="${esc(s.key||'')}" placeholder="G, Am…" maxlength="6" autocomplete="off" autocorrect="off"></label>
       <label>${tr('Capo')}<input id="fCapo" type="number" inputmode="numeric" min="0" max="9" value="${esc(s.capo||'')}" placeholder="0"></label>
-      <label>BPM<input id="fBpm" type="number" inputmode="numeric" min="30" max="240" value="${s.bpm||''}" placeholder="–"></label></div>
+      <label>BPM<input id="fBpm" type="number" inputmode="numeric" min="30" max="240" value="${s.bpm||''}" placeholder="–"></label>
+      <label>${tr('Beats')}<input id="fBeats" type="number" inputmode="numeric" min="2" max="12" value="${s.beats||4}"></label></div>
     <label>${tr('Chords')}<textarea id="fChart" class="chart" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Verse&#10;G | D | Am | C  x2">${esc(serializeChart(s.sections))}</textarea></label>
     <p class="hint">${tr('Section name on its own line. Chords separated by {0}. Add {1} at the end of a line to repeat it.','<b>|</b>','<b>x2</b>')} <button class="linkbtn" id="fSample">${tr('Show example')}</button></p>
     <div class="acts"><button class="tbtn primary" id="fSave">${tr('Save')}</button><button class="tbtn" id="fCancel">${tr('Cancel')}</button>${song?`<button class="tbtn" id="fDelete">${tr('Delete song')}</button>`:''}</div></div>`,()=>{
@@ -720,6 +746,7 @@ function openSongEditor(gigId,song){
       const capo=Math.max(0,Math.min(9,parseInt($('fCapo').value)||0)), bpm=parseInt($('fBpm').value)||0;
       const data=Object.assign(song?plainSong(song):{},{title,artist:$('fArtist').value.trim(),key,capo:capo?String(capo):'',sections});
       if(bpm) data.bpm=Math.max(30,Math.min(240,bpm)); else delete data.bpm;
+      const beats=Math.max(2,Math.min(12,parseInt($('fBeats').value)||4)); if(beats!==4) data.beats=beats; else delete data.beats;
       let found=!song;
       const gigs=edit(sets=>{ if(song){ sets.forEach(st=>{ const i=st.songs.indexOf(song); if(i>=0){ st.songs[i]=data; found=true; } }); }
         else { if(!sets.length) sets.push({name:'',songs:[]}); sets[sets.length-1].songs.push(data); } });

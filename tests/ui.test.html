@@ -139,5 +139,42 @@ run([
  ['EX example back when own gigs are all deleted', async()=>{ const d=await open('#edit-mybar',{'ag-gigs':BAR,'ag-seenWelcome':true}); frame.contentWindow.confirm=()=>true;
    d.getElementById('delGig').click(); await sleep(250);
    ok('example back', !!frame.contentDocument.querySelector('.sw[data-gig="example"]')); }],
+ ['SC follows the tempo line by line after a count-in', async()=>{
+   // 240 BPM: a beat is 0.25 s, a 4/4 bar is 1 s. Count-in 1 s, line 1 = 1 bar (1 s), line 2 = 1 bar ×2 (2 s).
+   const g=[{id:'mybar',name:'Bar',sets:[{name:'',songs:[{title:'Fast',key:'G',capo:'',bpm:240,sections:[{l:'A',c:['│ G │']},{l:'B',c:['│ D │  /x2/']}]}]}]}];
+   const d=await open('#mybar-1',{'ag-gigs':g,'ag-seenWelcome':true});
+   const now=()=>[...d.querySelectorAll('.ln')].findIndex(l=>l.classList.contains('now'));
+   ok('shows tempo', /240/.test(d.getElementById('scrollSpd').textContent), d.getElementById('scrollSpd').textContent);
+   d.getElementById('scrollBtn').click();
+   await sleep(500); ok('counting in, nothing yet', now()===-1, now());
+   await sleep(1000); ok('line 1 at 1.5 s', now()===0, now());
+   await sleep(1000); ok('line 2 at 2.5 s', now()===1, now());
+   await sleep(1000); ok('still line 2 (×2) at 3.5 s', now()===1, now());
+   await sleep(1200); ok('stopped at the end', !d.getElementById('scroller').classList.contains('on'));
+   ok('end toast', /End of song/.test(d.getElementById('toast').textContent), d.getElementById('toast').textContent); }],
+ ['SC pause, tempo nudge, start from a tapped line', async()=>{
+   const g=[{id:'mybar',name:'Bar',sets:[{name:'',songs:[{title:'Fast',key:'G',capo:'',bpm:200,sections:[{l:'A',c:['│ G │','│ C │','│ D │ D │ D │ D │']}]}]}]}];
+   const d=await open('#mybar-1',{'ag-gigs':g,'ag-seenWelcome':true});
+   const now=()=>[...d.querySelectorAll('.ln')].findIndex(l=>l.classList.contains('now'));
+   d.getElementById('faster').click(); await sleep(50);
+   ok('nudged up', /201/.test(d.getElementById('scrollSpd').textContent), d.getElementById('scrollSpd').textContent);
+   ok('nudge saved', JSON.parse(localStorage.getItem('ag-song:mybar:Fast')).bpm===201);
+   d.querySelectorAll('.ln')[2].click(); await sleep(50);
+   d.getElementById('scrollBtn').click(); await sleep(1400);
+   ok('starts on tapped line', now()===2, now());
+   d.getElementById('scrollBtn').click(); await sleep(50);
+   ok('paused', !d.getElementById('scroller').classList.contains('on')); await sleep(2000);
+   ok('stays put while paused', now()===2, now()); }],
+ ['SC no tempo opens the tempo screen', async()=>{ const d=await open('#mybar-1',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   d.getElementById('scrollBtn').click(); await sleep(150);
+   ok('tempo sheet', !!d.getElementById('mBpm')); ok('not running', !d.getElementById('scroller').classList.contains('on')); }],
+ ['SC beats per bar in the editor', async()=>{ const d=await open('#mybar-1',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100);
+   ok('defaults to 4', d.getElementById('fBeats').value==='4', d.getElementById('fBeats').value);
+   d.getElementById('fBeats').value='3'; d.getElementById('fSave').click(); await sleep(150);
+   ok('saved', JSON.parse(localStorage.getItem('ag-gigs'))[0].sets[0].songs[0].beats===3); }],
+ ['SC file keeps valid beats only', async()=>{ const d=await open('',{'ag-seenWelcome':true}); const v=frame.contentWindow.validateGigFile;
+   const one=b=>v({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'G',beats:b,sections:[]}]}]}]}).gigs[0].sets[0].songs[0].beats;
+   ok('3 kept', one(3)===3); ok('junk dropped', one('<b>')===undefined); }],
 ]);
 </script>

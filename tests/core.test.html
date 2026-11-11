@@ -30,6 +30,17 @@ eq('set without songs gets []', ()=>validateGigFile({kind:'setlists-gigs',v:1,gi
 eq('song defaults', ()=>{const x=validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X'}]}]}]}).gigs[0].sets[0].songs[0]; return [x.key,x.capo,x.sections];}, ['C','',[]]);
 eq('bad items dropped', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[null,7,{title:''},{break:'B'},{title:'Y',key:'D',sections:[{l:'V',c:['│ D │',5]}]}]}]}]}).gigs[0].sets[0].songs, [{break:'B'},{title:'Y',key:'D',capo:'',sections:[{l:'V',c:['│ D │']}]}]);
 eq('sanitizeGigs on stored data', ()=>sanitizeGigs([{id:'a',name:'A',sets:[{name:'S'}]},{id:'BAD id',name:'x',sets:[]}]).map(g=>g.id+':'+g.sets[0].songs.length), ['a:0']);
+
+eq('bars in a line', ()=>lineBeats('│ G │ D │ Am │ C │',4), 16);
+eq('repeat multiplies', ()=>lineBeats('│ G │ D │  /x2/',4), 16);
+eq('two chords in a box is one bar', ()=>lineBeats('│ F C/E │ Dm7 C │',4), 8);
+eq('waltz', ()=>lineBeats('│ G │ C │',3), 6);
+eq('notes do not count as bars', ()=>lineBeats('│ G │  kick-kick',4), 4);
+eq('line with no chords is one bar', ()=>lineBeats('│  /BREAK/',4), 4);
+eq('repeat covers bars since the last repeat', ()=>lineBeats('│ C │ G │  /x3/  │ G-F │ D │ C │',4), (2*3+3)*4);
+eq('several groups', ()=>lineBeats('│ C │ G │ /x3/ │ G-F │ D │ /x2/ │ G-F │ D │ /x4/',4), (6+4+8)*4);
+eq('timeline', ()=>songTimeline([{l:'A',c:['│ G │ D │','│ C │  /x3/']},{l:'',c:['│ G │']}],4).map(x=>[x.start,x.beats]), [[0,8],[8,12],[20,4]]);
+eq('timeline default 4/4', ()=>songTimeline([{l:'A',c:['│ G │']}]).map(x=>x.beats), [4]);
 }
 try{T()}catch(e){fails.push('ERROR: '+e.message)}
 document.body.textContent=fails.length?fails.join('\n'):'PASS '+n;
