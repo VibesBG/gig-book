@@ -8,7 +8,7 @@ A chord app for playing gigs from your phone or tablet. Make a gig, type your so
 
 ## Use it for your band
 
-1. Open the link. It starts with an example gig of two songs, so open them and try things out.
+1. Open the link. It starts with an example gig of two songs, so open them and try things out. The example steps aside as soon as you make or load your own gig.
 2. Tap **Make your own gig**, give it a name, and add your songs.
 3. Type each song's chords (see below). Add sets and breaks, and put everything in order with ↑ ↓.
 4. Add the app to your Home Screen. After the first visit it works without internet.

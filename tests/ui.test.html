@@ -9,7 +9,7 @@ run([
  ['T2 owner state survives (keys unchanged)', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-song:mybar:Tune A':{t:2}});
    const pill=d.querySelector('.row .pill'); ok('transposed pill B', pill&&pill.textContent==='B', pill&&pill.textContent);
    ok('no empty card with gigs', !d.getElementById('emptyCard')); }],
- ['T2 hide example', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-prefs':{hideExample:true}});
+ ['T2 example gone once you have your own gig', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR});
    ok('example hidden', !d.querySelector('.sw[data-gig="example"]')); }],
  ['T2 alnum gig id routes', async()=>{ const d=await open('#u1abc-1',{'ag-gigs':[Object.assign({},BAR[0],{id:'u1abc',name:'Mine'})]});
    ok('song view', d.getElementById('title').textContent.includes('Tune A'), d.getElementById('title').textContent); }],
@@ -88,8 +88,9 @@ run([
    d.getElementById('optBtn').click(); await sleep(100);
    d.getElementById('oSaveAll').click(); ok('save all', got&&got.name==='my-gigs.setlist.json'&&got.obj.gigs.length===1, got&&got.name);
    ok('load row', !!d.getElementById('oLoad'));
-   d.querySelector('#optEx [data-v="hide"]').click(); await sleep(100);
-   ok('example hidden', !d.querySelector('.sw[data-gig="example"]')); }],
+   ok('example not there', !d.querySelector('.sw[data-gig="example"]'));
+   d.querySelector('#optEx [data-v="show"]').click(); await sleep(100);
+   ok('example back on request', !!d.querySelector('.sw[data-gig="example"]')); }],
  ['T5 example tip translated', async()=>{ const d=await open('#example-1',{'ag-prefs':{lang:'bg'}});
    const tip=d.querySelector('.tip'); ok('tip shown', !!tip); }],
  ['T6 example gig content', async()=>{ const d=await open('#example',{'ag-seenWelcome':true});
@@ -129,5 +130,14 @@ run([
  ['FIX Chords button translated', async()=>{ const d=await open('#example-1',{'ag-seenWelcome':true,'ag-prefs':{lang:'bg'}});
    ok('bg', d.querySelector('[data-act="chords"]').textContent==='Акорди', d.querySelector('[data-act="chords"]').textContent); }],
 
+ ['EX new gig removes example + welcome', async()=>{ const d=await open('');
+   d.querySelector('[data-act="newgig"]').click(); await sleep(200); frame.contentDocument.getElementById('doneGig').click(); await sleep(200);
+   const dd=frame.contentDocument; ok('example gone', !dd.querySelector('.sw[data-gig="example"]')); ok('welcome gone', !dd.getElementById('welcome')); }],
+ ['EX loading a file removes example', async()=>{ const d=await open('');
+   frame.contentWindow.importText(JSON.stringify({kind:'setlists-gigs',v:1,gigs:BAR})); await sleep(250);
+   ok('example gone', !frame.contentDocument.querySelector('.sw[data-gig="example"]')); }],
+ ['EX example back when own gigs are all deleted', async()=>{ const d=await open('#edit-mybar',{'ag-gigs':BAR,'ag-seenWelcome':true}); frame.contentWindow.confirm=()=>true;
+   d.getElementById('delGig').click(); await sleep(250);
+   ok('example back', !!frame.contentDocument.querySelector('.sw[data-gig="example"]')); }],
 ]);
 </script>

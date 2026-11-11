@@ -247,7 +247,8 @@ const plainGig=g=>({id:g.id,name:g.name,sets:g.sets.map(s=>({name:s.name,songs:s
 function saveGigs(gigs){ const ok=store.set('gigs',gigs.map(plainGig)); if(ok) GIGS=gigs; return ok; }
 function rebuild(){
   GIGS=loadGigs();
-  LISTS=(prefs.hideExample&&GIGS.length?[]:[EXAMPLE]).concat(GIGS);
+  // the example gig steps aside once you have a gig of your own (Aa can bring it back)
+  LISTS=(GIGS.length&&!prefs.showExample?[]:[EXAMPLE]).concat(GIGS);
   LISTS.forEach(L=>{
     L.songs=[];
     L.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title){ x.set=s.name; x.idx=L.songs.length; x.list=L;
@@ -330,7 +331,7 @@ function openHelp(){
 const seenWelcome=()=>store.get('seenWelcome',false);
 
 /* ---------- prefs ---------- */
-const prefs=Object.assign({scale:1,theme:null,acc:'auto',simple:false,speed:4,hideExample:false,lang:'en'},store.get('prefs',{}));
+const prefs=Object.assign({scale:1,theme:null,acc:'auto',simple:false,speed:4,showExample:false,lang:'en'},store.get('prefs',{}));
 const savePrefs=()=>store.set('prefs',prefs);
 rebuild(); applyStatic();
 
@@ -432,7 +433,7 @@ function showList(){
   const played=SONGS.filter(s=>sstate(s).played).length;
   const find=`<div class="findrow"><input class="find" id="find" type="search" placeholder="${tr('Find a song in any gig')}" value="${esc(query)}" autocomplete="off">`+
     (played?`<button class="tbtn" id="clearPlayed">${tr('Clear ✓')} <small>${played}</small></button>`:'')+'</div>';
-  const empty=!seenWelcome()?`<div class="card" id="welcome"><h2>${tr('Welcome')}</h2><p>${tr('This is an example gig. Open a song and try it: change the key, tap a chord, start the metronome, swipe to the next song. Then make your own gig.')}</p>
+  const empty=!seenWelcome()&&!GIGS.length?`<div class="card" id="welcome"><h2>${tr('Welcome')}</h2><p>${tr('This is an example gig. Open a song and try it: change the key, tap a chord, start the metronome, swipe to the next song. Then make your own gig.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make my gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button><button class="tbtn" id="wHelp">${tr('Help')}</button><button class="tbtn" id="wGot">${tr('Got it')}</button></div></div>`
     :GIGS.length?'':`<div class="card" id="emptyCard"><h2>${tr('Make it yours')}</h2><p>${tr('This is an example gig. Make your own gig and type your songs in, or load a gig file someone sent you.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make your own gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div></div>`;
@@ -561,7 +562,7 @@ function openOptions(){
     <div class="opt"><span>${tr('Keep screen on')}<small>${tr('While this page is open')}</small></span>${segHTML('optWake',[['on',tr('On')],['off',tr('Off')]],lock?'on':'off')}</div>
     <div class="opt"><span>${tr('Simplify chords')}<small>Am7 → Am, Cadd9 → C, D/F# → D</small></span>${segHTML('optSimple',[['1',tr('On')],['0',tr('Off')]],prefs.simple?'1':'0')}</div>
     <div class="opt"><span>${tr('Sharps or flats')}<small>${tr('How transposed chords are spelled')}</small></span>${segHTML('optAcc',[['auto',tr('Auto')],['sharp','♯'],['flat','♭']],prefs.acc)}</div>
-    ${GIGS.length?`<div class="opt"><span>${tr('Example gig')}<small>${tr('Show it next to your own gigs')}</small></span>${segHTML('optEx',[['show',tr('Show')],['hide',tr('Hide')]],prefs.hideExample?'hide':'show')}</div>`:''}
+    ${GIGS.length?`<div class="opt"><span>${tr('Example gig')}<small>${tr('Show it next to your own gigs')}</small></span>${segHTML('optEx',[['show',tr('Show')],['hide',tr('Hide')]],prefs.showExample?'show':'hide')}</div>`:''}
     <div class="opt"><span>${tr('My gigs')}<small>${tr('Save all your gigs to one file (backup), or load a file')}</small></span><div class="acts">${GIGS.length?`<button class="tbtn" id="oSaveAll">${tr('Save all')}</button>`:''}<button class="tbtn" id="oLoad">${tr('Load')}</button></div></div>
     <div class="opt"><span>${tr('Help')}<small>${tr('How to use the app')}</small></span><button class="tbtn" id="oHelp">${tr('Open')}</button></div>
   </div>`,()=>{
@@ -572,7 +573,7 @@ function openOptions(){
     wire('optSimple',v=>{prefs.simple=v==='1';savePrefs();refresh()});
     wire('optAcc',v=>{prefs.acc=v;savePrefs();refresh()});
     wire('optLang',v=>{prefs.lang=v;savePrefs();applyStatic();refresh();openOptions()});
-    if($('optEx')) wire('optEx',v=>{prefs.hideExample=v==='hide';savePrefs();rebuild();useList(LISTS.some(l=>l.id===LIST.id)?LIST.id:LISTS[0].id);if(cur<0)refresh()});
+    if($('optEx')) wire('optEx',v=>{prefs.showExample=v==='show';savePrefs();rebuild();useList(LISTS.some(l=>l.id===LIST.id)?LIST.id:LISTS[0].id);if(cur<0)refresh()});
     if($('oSaveAll')) $('oSaveAll').onclick=()=>saveFile(GIGS,'my-gigs.setlist.json');
     $('oLoad').onclick=()=>{closeSheetQuiet();pickFile()};
     $('oHelp').onclick=openHelp;
