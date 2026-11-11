@@ -1,0 +1,812 @@
+<title>Gig Setlists</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
+<style>
+/* Layout: one song per screen, sticky title bar, song toolbar (key / capo / tempo / chords), chord bars as wrapping chips, thumb-reach dock (prev · scroll · next). Dark "stage" first, light "daylight" for outdoor gigs. */
+:root{
+  --bg:#0f1217; --panel:#171b22; --chip:#1f2530; --line:#2b3240;
+  --fg:#eef1f5; --muted:#8d97a7; --accent:#ffb547; --accent-ink:#1a1206; --accent-soft:rgba(255,181,71,.14);
+  --ok:#5fd39a; --shade:rgba(5,7,10,.6);
+  --f-display:'Big Shoulders Display','Arial Narrow',Impact,sans-serif;
+  --f-body:'Archivo',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-chord:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --scale:1;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#f4f5f7; --panel:#ffffff; --chip:#ffffff; --line:#d3d8e0;
+  --fg:#0f141b; --muted:#5b6575; --accent:#b4650a; --accent-ink:#ffffff; --accent-soft:rgba(180,101,10,.12);
+  --ok:#1d8a55; --shade:rgba(15,20,27,.35);
+  color-scheme:light;}}
+:root[data-theme="light"]{
+  --bg:#f4f5f7; --panel:#ffffff; --chip:#ffffff; --line:#d3d8e0;
+  --fg:#0f141b; --muted:#5b6575; --accent:#b4650a; --accent-ink:#ffffff; --accent-soft:rgba(180,101,10,.12);
+  --ok:#1d8a55; --shade:rgba(15,20,27,.35);
+  color-scheme:light;}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--f-body);font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:980px;margin:0 auto}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);
+  display:flex;align-items:center;gap:8px;padding-block:10px;border-bottom:1px solid var(--line)}
+.bar h1{font-family:var(--f-display);font-weight:800;font-size:clamp(26px,6vw,40px);line-height:1;letter-spacing:.01em;
+  text-transform:uppercase;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .num{color:var(--accent);margin-right:.3em}
+.tool{flex:none;min-width:44px;height:44px;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);
+  cursor:pointer;font-weight:600;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.tool[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.beat{width:14px;height:14px;border-radius:50%;background:var(--line);flex:none}
+.beat.on{background:var(--accent)}
+.beat.on.one{background:var(--ok)}
+
+/* list view */
+.list{padding-block:14px 40px;display:grid;gap:18px}
+.switch{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(120px,1fr);overflow-x:auto;scrollbar-width:none;gap:6px;padding:4px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.sw{min-height:56px;border:0;border-radius:10px;background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 10px}
+.sw b{font-family:var(--f-display);font-weight:800;font-size:clamp(17px,4.6vw,22px);text-align:center;text-transform:uppercase;letter-spacing:.03em;line-height:1}
+.sw small{font-size:12px;color:var(--muted)}
+.sw[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.sw[aria-selected="true"] small{color:var(--accent-ink);opacity:.8}
+.findrow{display:flex;gap:8px;align-items:center}
+.find{flex:1;min-width:0;height:48px;border-radius:12px;border:1px solid var(--line);background:var(--panel);padding:0 14px;font-size:16px}
+.find::placeholder{color:var(--muted)}
+.set h2{font-family:var(--f-display);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:20px;
+  color:var(--muted);margin:0 0 8px;display:flex;align-items:baseline;gap:10px}
+.set h2 small{font-family:var(--f-body);font-weight:500;font-size:13px;letter-spacing:0;text-transform:none}
+.songs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px}
+.row{display:flex;align-items:center;gap:12px;text-align:left;width:100%;min-height:56px;padding:10px 14px;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;cursor:pointer}
+.row:active{transform:scale(.99)}
+.row .n{font-family:var(--f-chord);font-weight:600;color:var(--muted);width:2.4ch;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.row .t{flex:1;min-width:0;font-weight:600;font-size:17px}
+.row .t small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
+.row.current{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.row.played{opacity:.55}
+.row.played .n{color:var(--ok)}
+.brk{grid-column:1/-1;text-align:center;font-family:var(--f-display);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);padding:6px;border:1px dashed var(--line);border-radius:12px}
+.empty{color:var(--muted);text-align:center;padding:30px 0}
+.card{border:1px solid var(--accent);border-radius:16px;background:var(--panel);padding:16px 18px}
+.card h2{font-family:var(--f-display);font-weight:800;text-transform:uppercase;font-size:26px;margin:0 0 6px;letter-spacing:.02em}
+.card p{margin:0 0 12px;color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;gap:8px}
+.items{display:grid;gap:6px}
+.it{display:flex;gap:6px;align-items:center}
+.ittitle{flex:1;min-width:0;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:52px;padding:6px 12px;cursor:pointer}
+.ittitle b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ittitle small{display:block;color:var(--muted);font-size:12px}
+.itset,.itbrk{flex:1}
+.itset{font-family:var(--f-display);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.itbrk{color:var(--accent);border-style:dashed}
+.itb{display:flex;gap:4px;flex:none}
+.tool:disabled{opacity:.3;cursor:default}
+.fl,.form label{display:grid;gap:4px;color:var(--muted);font-size:14px;font-weight:600}
+.form{display:grid;gap:12px}
+.form input,.form textarea{width:100%;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg);padding:0 12px;font-size:16px;color:var(--fg)}
+.form textarea.chart{min-height:40vh;padding:10px 12px;font-family:var(--f-chord);line-height:1.5;resize:vertical}
+.frow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.hint{margin:0;color:var(--muted);font-size:14px}
+.tip{margin:0 0 12px;padding:10px 14px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent);font-size:15px}
+.help{display:grid;gap:14px}
+.help h4{margin:0 0 4px;font-family:var(--f-display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:19px}
+.help p{margin:0;color:var(--muted);line-height:1.5}
+.help pre{margin:8px 0;padding:10px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);color:var(--fg);font-family:var(--f-chord);font-size:14px;white-space:pre-wrap}
+.listacts .tbtn{height:44px}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-weight:600}
+
+.pills{display:flex;gap:6px;flex-wrap:wrap;flex:none}
+.pill{font-family:var(--f-chord);font-weight:600;font-size:13px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.pill.capo{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.pill.moved{border-color:var(--accent);color:var(--accent)}
+
+/* song toolbar */
+.song{padding-block:14px 150px}
+.tb{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin-bottom:6px}
+.step{display:flex;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.step button{width:44px;height:48px;border:0;background:transparent;cursor:pointer;font-size:20px;font-weight:600}
+.step button:active{background:var(--chip)}
+.step .v{min-width:4.2em;text-align:center;display:flex;flex-direction:column;line-height:1.05;padding:0 2px}
+.step .v small{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.step .v b{font-family:var(--f-chord);font-size:20px}
+.step.moved{border-color:var(--accent)}
+.step.moved .v b{color:var(--accent)}
+.tbtn{height:50px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-weight:600;
+  display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.tbtn small{font-weight:500;color:var(--muted);font-size:12px}
+.tbtn[aria-pressed="true"]{border-color:var(--ok);color:var(--ok)}
+.sub{font-size:14px;color:var(--muted);margin:0 0 12px;display:flex;flex-wrap:wrap;gap:4px 14px}
+.sub b{color:var(--fg);font-weight:600}
+
+.sec{display:grid;grid-template-columns:8.5rem 1fr;gap:6px 14px;padding-block:10px;border-top:1px solid var(--line)}
+.sec:first-of-type{border-top:0}
+.sec.cont{border-top:0;padding-top:0}
+.sec-l{font-family:var(--f-display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+  font-size:calc(19px*var(--scale));color:var(--muted);padding-top:6px;line-height:1.1}
+.sec-b{min-width:0;display:grid;gap:6px}
+.ln{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ch{font-family:var(--f-chord);font-weight:700;font-size:calc(21px*var(--scale));line-height:1;
+  padding:.42em .55em;border-radius:8px;background:var(--chip);border:1px solid var(--line);white-space:nowrap;cursor:pointer}
+.ch:active{border-color:var(--accent)}
+.rep{font-family:var(--f-chord);font-weight:700;font-size:calc(17px*var(--scale));line-height:1;padding:.45em .6em;border-radius:8px;
+  background:var(--accent);color:var(--accent-ink);white-space:nowrap}
+.note{font-size:calc(15px*var(--scale));color:var(--muted);font-style:italic}
+.note.loud{color:var(--accent);font-style:normal;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.webflag{color:var(--accent);font-weight:600}
+.srcs{margin-top:22px;display:grid;gap:4px;font-size:14px;color:var(--muted);padding:12px;border:1px dashed var(--line);border-radius:12px}
+.srcs b{color:var(--fg)}
+.srcs p{margin:0}
+.srcs a{color:var(--accent);overflow-wrap:anywhere}
+.mynote{margin-top:22px;display:grid;gap:6px}
+.mynote label{font-family:var(--f-display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-size:17px}
+.mynote textarea{width:100%;min-height:84px;border-radius:12px;border:1px solid var(--line);background:var(--panel);padding:10px 12px;resize:vertical;font-size:calc(16px*var(--scale))}
+@media (max-width:600px){
+  .sec{grid-template-columns:1fr;gap:6px}
+  .sec-l{padding-top:0}
+}
+
+/* bottom dock */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--bg);border-top:1px solid var(--line);
+  padding:8px max(16px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.dock-in{max-width:980px;margin:0 auto;display:grid;grid-template-columns:1fr auto 1fr;gap:8px}
+.nav{min-height:60px;border-radius:12px;border:1px solid var(--line);background:var(--panel);cursor:pointer;
+  display:flex;flex-direction:column;justify-content:center;padding:6px 14px;text-align:left;min-width:0}
+.nav.next{text-align:right;background:var(--accent-soft);border-color:var(--accent)}
+.nav small{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.nav b{font-weight:600;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav:disabled{opacity:.35;cursor:default}
+.scroller{display:flex;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.scroller button{height:60px;border:0;background:transparent;cursor:pointer}
+.scroller .sm{width:34px;font-size:18px;color:var(--muted)}
+.scroller .play{min-width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:20px;line-height:1}
+.scroller .play small{font-size:10px;color:var(--muted);letter-spacing:.08em;margin-top:3px}
+.scroller.on{border-color:var(--accent)}
+.scroller.on .play{color:var(--accent)}
+@media (max-width:420px){.nav{padding:6px 10px}.nav b{font-size:14px}}
+
+/* bottom sheet */
+.shade{position:fixed;inset:0;z-index:20;background:var(--shade);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:720px;max-height:82vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-bottom:0;
+  border-radius:18px 18px 0 0;padding:14px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sheet-h h3{flex:1;min-width:0;margin:0;font-family:var(--f-display);font-weight:800;font-size:26px;letter-spacing:.02em}
+.diagrams{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+.dg{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.dg b{font-family:var(--f-chord);font-size:18px}
+.dg small{font-size:11px;color:var(--muted);text-align:center}
+.dg svg{width:100%;max-width:120px;height:auto}
+.dg .str{stroke:var(--muted);stroke-width:1}
+.dg .nut{stroke:var(--fg);stroke-width:4}
+.dg .dot{fill:var(--accent)}
+.dg .open{fill:none;stroke:var(--fg);stroke-width:1.4}
+.dg .mute{stroke:var(--muted);stroke-width:1.6}
+.dg .lbl{fill:var(--muted);font:600 9px var(--f-body)}
+.opts{display:grid;gap:10px}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.opt span{min-width:0}
+.opt small{display:block;color:var(--muted);font-size:13px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}
+.seg button{min-width:48px;height:44px;border:0;background:transparent;cursor:pointer;font-weight:600;padding:0 10px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.bigbpm{font-family:var(--f-chord);font-size:64px;font-weight:700;text-align:center;line-height:1;margin:6px 0 2px}
+.bpmrow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.bpmrow .tbtn{min-width:64px;justify-content:center}
+.tbtn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;
+  background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <button class="tool" id="homeBtn" aria-label="All songs" hidden>☰</button>
+    <h1 id="title">Setlists</h1>
+    <span class="beat" id="beat" hidden></span>
+    <button class="tool" id="optBtn" aria-label="Display settings">Aa</button>
+  </header>
+  <main id="view"></main>
+</div>
+<nav class="dock" id="dock" hidden>
+  <div class="dock-in">
+    <button class="nav" id="prevBtn"><small>‹ Previous</small><b id="prevT"></b></button>
+    <div class="scroller" id="scroller">
+      <button class="sm" id="slower" aria-label="Scroll slower">−</button>
+      <button class="play" id="scrollBtn" aria-label="Auto-scroll"><span id="scrollIcon">▶</span><small id="scrollSpd">SPD 4</small></button>
+      <button class="sm" id="faster" aria-label="Scroll faster">+</button>
+    </div>
+    <button class="nav next" id="nextBtn"><small>Next ›</small><b id="nextT"></b></button>
+  </div>
+</nav>
+<input type="file" id="gigFile" accept=".json,application/json,text/plain" hidden>
+<div id="sheetHost"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script type="application/json" id="setlist">__EXAMPLE__</script>
+<script>
+/*__CORE__*/
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem('ag-'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
+             set(k,v){try{localStorage.setItem('ag-'+k,JSON.stringify(v));return true}catch(e){return false}},
+             del(k){try{localStorage.removeItem('ag-'+k)}catch(e){}}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let tt; function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),1700)}
+
+/* ---------- data ---------- */
+// The example gig ships with the page. Everyone's own gigs live only on their device (ag-gigs).
+const EXAMPLE=Object.assign(JSON.parse($('setlist').textContent)[0],{ex:true});
+Object.defineProperty(EXAMPLE,'name',{get:()=>tr('Example gig')});
+let GIGS=[], LISTS=[];
+const loadGigs=()=>sanitizeGigs(store.get('gigs',[]));
+const plainGig=g=>({id:g.id,name:g.name,sets:g.sets.map(s=>({name:s.name,songs:s.songs.map(x=>{const y=Object.assign({},x);delete y.set;delete y.idx;delete y.list;delete y.no;return y})}))});
+function saveGigs(gigs){ const ok=store.set('gigs',gigs.map(plainGig)); if(ok) GIGS=gigs; return ok; }
+function rebuild(){
+  GIGS=loadGigs();
+  LISTS=(prefs.hideExample&&GIGS.length?[]:[EXAMPLE]).concat(GIGS);
+  LISTS.forEach(L=>{
+    L.songs=[];
+    L.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title){ x.set=s.name; x.idx=L.songs.length; x.list=L;
+      x.no=s.name==='Bonus'?'B'+(L.songs.filter(y=>y.set==='Bonus').length+1):String(L.songs.filter(y=>y.set!=='Bonus').length+1);
+      L.songs.push(x);} }));
+  });
+}
+let LIST=null, SETS=[], SONGS=[];
+function useList(id){ LIST=LISTS.find(l=>l.id===id)||LISTS[0]; SETS=LIST.sets; SONGS=LIST.songs; store.set('list',LIST.id); }
+const songKey=s=>'song:'+s.list.id+':'+s.title;
+const sstate=s=>Object.assign({t:0,c:+s.capo||0,bpm:null,played:false,note:''},store.get(songKey(s),{}));
+let warned=0; const warnSave=()=>{ if(Date.now()-warned>5000){ warned=Date.now(); toast(tr(SAVE_FAIL)); } };
+const saveS=(s,patch)=>{const v=Object.assign(sstate(s),patch);if(!store.set(songKey(s),v)) warnSave();return v};
+
+/* ---------- language ---------- */
+const BG={
+ 'All songs':'Всички песни','Settings':'Настройки','‹ Previous':'‹ Предишна','Next ›':'Следваща ›','Scroll slower':'По-бавно','Auto-scroll':'Авто-скрол','Scroll faster':'По-бързо',
+ 'No diagram':'Няма диаграма','bass note {0}':'бас {0}','closest shape':'най-близка позиция','Capo {0}':'Капо {0}','Choose gig':'Избери участие',
+ '1 song':'1 песен','{0} songs':'{0} песни','Find a song in any gig':'Търси песен във всички участия','Clear ✓':'Изчисти ✓',
+ 'Make it yours':'Направи го свое','This is an example gig. Make your own gig and type your songs in, or load a gig file someone sent you.':'Това е примерно участие. Направи свое и въведи песните си или зареди файл, който някой ти е пратил.',
+ 'Make your own gig':'Направи свое участие','Load a file':'Зареди файл','＋ New gig':'＋ Ново участие','✎ Edit gig':'✎ Редактирай участието','Cleared played marks':'Отметките са изчистени',
+ 'Results':'Резултати','No song called “{0}”.':'Няма песен „{0}“.','Key down a semitone':'Тон надолу','Key up a semitone':'Тон нагоре','Capo down':'Капо надолу','Capo up':'Капо нагоре',
+ 'Key':'Тон','Capo':'Капо','✓ Played':'✓ Изсвирена','Mark played':'Отбележи изсвирена','✎ Edit':'✎ Редактирай','Chart from the internet · check it':'Акорди от интернет · провери ги',
+ 'Sounds in':'Звучи в','Original:':'Оригинал:','capo':'капо','Reset':'Върни','{0} of {1}':'{0} от {1}','No chords yet. Tap ✎ Edit to add them.':'Още няма акорди. Натисни ✎ Редактирай, за да ги добавиш.',
+ 'Where these chords come from':'Откъде са тези акорди','My notes':'Моите бележки','Cues, who starts, lyrics you forget… (saved on this device)':'Кой започва, сигнали, думи, които забравяш… (пази се на това устройство)',
+ 'End of setlist':'Край на списъка','Back to original key':'Обратно в оригиналния тон','Close':'Затвори','Single-note riff:':'Риф от единични ноти:','Chords in {0}':'Акорди в {0}',
+ 'Text size':'Размер на текста','Look':'Вид','Stage is dark, Daylight for sun':'Сцена е тъмно, Ден е за силно слънце','Stage':'Сцена','Daylight':'Ден',
+ 'Keep screen on':'Екранът да не гасне','While this page is open':'Докато приложението е отворено','On':'Вкл','Off':'Изкл','Simplify chords':'Опрости акордите',
+ 'Sharps or flats':'Диези или бемоли','How transposed chords are spelled':'Как се пишат транспонираните акорди','Auto':'Авто','Language':'Език',
+ 'Example gig':'Примерно участие','Show it next to your own gigs':'Показвай го до твоите участия','Show':'Показвай','Hide':'Скрий',
+ 'My gigs':'Моите участия','Save all your gigs to one file (backup), or load a file':'Запази всичките си участия в един файл (резервно копие) или зареди файл','Save all':'Запази всички','Load':'Зареди','Help':'Помощ','How to use the app':'Как се ползва приложението','Open':'Отвори',
+ 'Can’t keep the screen on here — raise Auto-Lock in settings':'Тук екранът не може да остане включен — увеличи автоматичното заключване в настройките','Screen stays on':'Екранът остава включен',
+ 'Screen lock not allowed here':'Не е позволено тук','Screen can turn off':'Екранът може да изгасне','End of song':'Край на песента','Sound isn’t available here':'Звукът не е наличен тук',
+ 'Stop':'Стоп','Start':'Старт','Tempo · {0}':'Темпо · {0}','No tempo saved yet — tap or set one':'Още няма темпо — почукай или задай','Tap tempo':'Почукай темпо','Count in 4':'Отброй 4',
+ 'Changes are saved for this song on this device.':'Промените се пазят за тази песен на това устройство.',
+ 'Edit gig':'Редакция на участие','Set name':'Име на сет','Break':'Почивка','Break text':'Текст за почивката','Move up':'Нагоре','Move down':'Надолу','Remove':'Премахни','Gig name':'Име на участието',
+ 'No songs yet. Add your first song.':'Още няма песни. Добави първата.','＋ Song':'＋ Песен','＋ Set':'＋ Сет','＋ Break':'＋ Почивка','Save gig to file':'Запази във файл','Delete gig':'Изтрий участието','Done':'Готово',
+ 'My gig':'Моето участие','Saved':'Запазено','Set {0}':'Сет {0}','Remove “{0}” from this gig?':'Да махна ли „{0}“ от участието?','Delete the gig “{0}” from this device?':'Да изтрия ли участието „{0}“ от това устройство?','Gig deleted':'Участието е изтрито',
+ 'Edit song':'Редакция на песен','New song':'Нова песен','Title':'Заглавие','Artist':'Изпълнител','BPM':'BPM','Chords':'Акорди',
+ 'Section name on its own line. Chords separated by {0}. Add {1} at the end of a line to repeat it.':'Името на частта е на отделен ред. Акордите се делят с {0}. Добави {1} в края на реда, за да се повтори.',
+ 'Show example':'Покажи пример','Save':'Запази','Cancel':'Откажи','Delete song':'Изтрий песента','Give the song a title':'Дай заглавие на песента','Delete “{0}”?':'Да изтрия ли „{0}“?','Song deleted':'Песента е изтрита',
+ 'Couldn’t save on this device. Is storage full or private browsing on?':'Не можах да запазя на това устройство. Пълна ли е паметта или е включен частен режим?',
+ 'Loaded 1 gig':'Заредено е 1 участие','Loaded {0} gigs':'Заредени са {0} участия','That isn’t a setlist file':'Това не е файл със сетлист','Already on this device':'Вече е на това устройство',
+ 'This gig is already here: {0}. Replace it with the file, or keep both?':'Това участие вече е тук: {0}. Да го заменя ли с файла или да пазя и двете?',
+ 'These gigs are already here: {0}. Replace them with the file, or keep both?':'Тези участия вече са тук: {0}. Да ги заменя ли с файла или да пазя и двете?',
+ 'Replace':'Замени','Keep both':'Пази и двете','Couldn’t read that file':'Не можах да прочета файла',
+ 'Welcome':'Добре дошъл','This is an example gig. Open a song and try it: change the key, tap a chord, start the metronome, swipe to the next song. Then make your own gig.':'Това е примерно участие. Отвори песен и пробвай: смени тона, натисни акорд, пусни метронома, плъзни към следващата песен. После направи свое участие.',
+ 'Make my gig':'Направи моето участие','Got it':'Разбрах'
+};
+function tr(s,...a){ let r=(prefs.lang==='bg'&&BG[s])||s; a.forEach((v,i)=>{ r=r.split('{'+i+'}').join(v); }); return r; }
+const songsN=n=>n===1?tr('1 song'):tr('{0} songs',n);
+function applyStatic(){
+  document.documentElement.lang=prefs.lang;
+  $('homeBtn').setAttribute('aria-label',tr('All songs')); $('optBtn').setAttribute('aria-label',tr('Settings'));
+  $('prevBtn').querySelector('small').textContent=tr('‹ Previous'); $('nextBtn').querySelector('small').textContent=tr('Next ›');
+  $('slower').setAttribute('aria-label',tr('Scroll slower')); $('scrollBtn').setAttribute('aria-label',tr('Auto-scroll')); $('faster').setAttribute('aria-label',tr('Scroll faster'));
+}
+const HELP={en:[
+ ['Make a gig','Tap “Make your own gig” (or ＋ New gig). Give it a name, then add songs. Use ＋ Set and ＋ Break to split it into sets, and ↑ ↓ to change the order.'],
+ ['Type a song','Write the section name on its own line, then the chords, separated by |. Add x2 at the end of a line to repeat it.<pre>Verse\nG | D | Am | C  x2\nChorus\nC | G | D | D</pre>Leave an empty line to continue a section without a new name.'],
+ ['Key, capo and chords','Key − / + transposes the whole song. Capo − / + keeps the sound and changes the shapes. Tap any chord to see how to play it.'],
+ ['Tempo','Tap ♩ to set the tempo, tap along with “Tap tempo”, or start the metronome. “Count in 4” clicks four beats and stops. Tap the dot at the top to stop the click.'],
+ ['On stage','▶ scrolls the song by itself (− / + for speed). Swipe left or right for the next or previous song. A Bluetooth page-turner pedal works too (arrow keys or Page Up / Page Down). Turn on “Keep screen on” in Aa.'],
+ ['Add to Home Screen','iPhone/iPad: open in Safari, tap Share, then “Add to Home Screen”. Android: Chrome menu ⋮, then “Add to Home screen”. After the first visit it works without internet.'],
+ ['Back up and share','In a gig, tap “Save gig to file” to back it up or send it to a bandmate. “Load a file” puts it on another phone. Aa › My gigs › Save all makes one backup of everything.'],
+ ['Your data','Your gigs, notes and changes are saved only on this device. Nothing is sent anywhere. Clearing the browser data deletes them, so keep a backup file.']
+],bg:[
+ ['Направи участие','Натисни „Направи свое участие“ (или ＋ Ново участие). Дай му име и добави песни. С ＋ Сет и ＋ Почивка го делиш на сетове, а с ↑ ↓ сменяш реда.'],
+ ['Въведи песен','Напиши името на частта на отделен ред, после акордите, разделени с |. Добави x2 в края на реда, за да се повтори.<pre>Куплет\nG | D | Am | C  x2\nПрипев\nC | G | D | D</pre>Празен ред продължава частта без ново име.'],
+ ['Тон, капо и акорди','Тон − / + транспонира цялата песен. Капо − / + пази звученето и сменя позициите. Натисни акорд, за да видиш как се хваща.'],
+ ['Темпо','Натисни ♩, за да зададеш темпо, почукай с „Почукай темпо“ или пусни метронома. „Отброй 4“ брои четири удара и спира. Натисни точката горе, за да спреш метронома.'],
+ ['На сцената','▶ скролва песента сама (− / + за скорост). Плъзни наляво или надясно за следваща или предишна песен. Работи и Bluetooth педал за страници (стрелки или Page Up / Page Down). Включи „Екранът да не гасне“ в Aa.'],
+ ['Добави на началния екран','iPhone/iPad: отвори в Safari, натисни Сподели, после „Добави към началния екран“. Android: менюто ⋮ в Chrome, после „Добави към началния екран“. След първото отваряне работи и без интернет.'],
+ ['Резервно копие и споделяне','В участие натисни „Запази във файл“, за да го пазиш или пратиш на колега. „Зареди файл“ го слага на друг телефон. Aa › Моите участия › Запази всички прави едно копие на всичко.'],
+ ['Твоите данни','Участията, бележките и промените се пазят само на това устройство. Нищо не се изпраща никъде. Ако изчистиш данните на браузъра, те се трият, затова пази резервен файл.']
+]};
+function openHelp(){
+  openSheet(tr('Help'),'<div class="help">'+(HELP[prefs.lang]||HELP.en).map(([h,b])=>`<section><h4>${esc(h)}</h4><p>${b.replace(/\n/g,'\n')}</p></section>`).join('')+'</div>');
+}
+const seenWelcome=()=>store.get('seenWelcome',false);
+
+/* ---------- prefs ---------- */
+const prefs=Object.assign({scale:1,theme:null,acc:'auto',simple:false,speed:4,hideExample:false,lang:'en'},store.get('prefs',{}));
+const savePrefs=()=>store.set('prefs',prefs);
+rebuild(); applyStatic();
+
+/* ---------- music theory ---------- */
+const SH=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FL=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const PC={C:0,'B#':0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,Fb:4,'E#':5,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11,Cb:11};
+const FLAT_KEYS=new Set(['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm']);
+const mod=n=>((n%12)+12)%12;
+function keyName(key,shift){ // "G#m" + 3 -> "Bm"
+  const m=key.match(/^([A-G][#b]?)(m?)/); if(!m) return key;
+  const pc=mod(PC[m[1]]+shift);
+  const sharp=SH[pc]+m[2], flat=FL[pc]+m[2];
+  if(prefs.acc==='sharp') return sharp; if(prefs.acc==='flat') return flat;
+  return FLAT_KEYS.has(flat)?flat:sharp;
+}
+function useFlats(targetKey){ if(prefs.acc!=='auto') return prefs.acc==='flat'; return FLAT_KEYS.has(targetKey)||/^[A-G]b/.test(targetKey); }
+function simpleQ(q){ q=q.replace('(+oct)',''); if(/^dim/.test(q)) return 'dim'; if(q==='5') return '5'; if(/^m(?!aj)/.test(q)||/^min/.test(q)) return 'm'; return ''; }
+// Transpose / simplify one chip of chord text ("Em-Bm-C", "G A", "D/F#")
+function xform(text,shift,flats){
+  if(prefs.simple) text=text.replace(/([A-G][#b]?)([^\s\-→\/.]*)(\/[A-G][#b]?)?/g,(a,r,q)=>r+simpleQ(q));
+  if(!shift) return text;
+  return text.replace(/[A-G][#b]?/g,n=>(flats?FL:SH)[mod(PC[n]+shift)]);
+}
+
+/* ---------- chord diagrams ---------- */
+// frets low E -> high e, null = muted
+const OPEN={A:[null,0,2,2,2,0],Am:[null,0,2,2,1,0],A7:[null,0,2,0,2,0],Am7:[null,0,2,0,1,0],Amaj7:[null,0,2,1,2,0],Asus4:[null,0,2,2,3,0],Asus2:[null,0,2,2,0,0],
+  B7:[null,2,1,2,0,2],C:[null,3,2,0,1,0],Cadd9:[null,3,2,0,3,0],C7:[null,3,2,3,1,0],Cmaj7:[null,3,2,0,0,0],
+  D:[null,null,0,2,3,2],Dm:[null,null,0,2,3,1],D7:[null,null,0,2,1,2],Dsus4:[null,null,0,2,3,3],Dsus2:[null,null,0,2,3,0],Dmaj7:[null,null,0,2,2,2],
+  E:[0,2,2,1,0,0],Em:[0,2,2,0,0,0],E7:[0,2,0,1,0,0],Em7:[0,2,2,0,3,0],Esus4:[0,2,2,2,0,0],
+  G:[3,2,0,0,0,3],G7:[3,2,0,0,0,1],Fmaj7:[null,null,3,2,1,0],
+  'D/F#':[2,null,0,2,3,2],'G/F#':[2,null,0,0,3,3],'C/B':[null,2,2,0,1,0],'Am/G':[3,0,2,2,1,0],'C/G':[3,3,2,0,1,0]};
+const ESHAPE={'':[0,2,2,1,0,0],m:[0,2,2,0,0,0],'7':[0,2,0,1,0,0],m7:[0,2,0,0,0,0],maj7:[0,null,1,1,0,null],sus4:[0,2,2,2,0,0],'5':[0,2,2,null,null,null],'6':[0,2,2,1,2,0]};
+const ASHAPE={'':[null,0,2,2,2,0],m:[null,0,2,2,1,0],'7':[null,0,2,0,2,0],m7:[null,0,2,0,1,0],maj7:[null,0,2,1,2,0],sus4:[null,0,2,2,3,0],sus2:[null,0,2,2,0,0],
+  '5':[null,0,2,2,null,null],dim:[null,0,1,2,1,null],dim7:[null,0,1,2,1,2],'6':[null,0,2,2,2,2],'9':[null,0,-1,0,0,0],add9:[null,0,2,4,2,0]};
+function normQ(q){ q=q.replace('(+oct)','').replace(/^min/,'m'); if(q==='sus') q='sus4';
+  const near={maj9:'maj7',maj:'',m9:'m7',m6:'m','11':'7','13':'7',aug:'',add11:''}; return q in near?[near[q],true]:[q,false]; }
+function shapeFor(name){
+  const m=name.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/); if(!m) return null;
+  const root=m[1], bass=m[3]||'';
+  const nat=SH[PC[root]], flt=FL[PC[root]];
+  for(const r of [root,nat,flt]){ if(OPEN[r+m[2]+(bass?'/'+bass:'')]) return {f:OPEN[r+m[2]+(bass?'/'+bass:'')],bass:'',approx:false}; }
+  let [q,approx]=normQ(m[2]);
+  for(const r of [root,nat,flt]){ if(OPEN[r+q]) return {f:OPEN[r+q],bass,approx}; }
+  const pc=PC[root], cands=[];
+  if(ESHAPE[q]){ let f=mod(pc-4); cands.push([f,ESHAPE[q]]); }
+  if(ASHAPE[q]){ let f=mod(pc-9); if(ASHAPE[q].some(v=>v!==null&&v<0)&&f<1) f+=12; cands.push([f,ASHAPE[q]]); }
+  if(!cands.length){ const fb=/^m(?!aj)/.test(q)?'m':''; return shapeFor(root+fb) && Object.assign(shapeFor(root+fb),{bass,approx:true}); }
+  cands.sort((a,b)=>a[0]-b[0]);
+  const [r,t]=cands[0];
+  return {f:t.map(v=>v===null?null:v+r),bass,approx,barre:r>0?r:0,rootStr:t[0]===null?1:0};
+}
+function diagramSVG(sh){
+  const f=sh.f, played=f.filter(v=>v!==null&&v>0);
+  const maxF=Math.max(0,...played), minF=played.length?Math.min(...played):0;
+  const base=maxF<=4?1:minF;
+  const X=i=>14+i*14, Y=j=>26+j*17;
+  let s=`<svg viewBox="0 0 100 120" role="img">`;
+  for(let i=0;i<6;i++) s+=`<line class="str" x1="${X(i)}" y1="${Y(0)}" x2="${X(i)}" y2="${Y(5)}"/>`;
+  for(let j=0;j<=5;j++) s+=`<line class="str" x1="${X(0)}" y1="${Y(j)}" x2="${X(5)}" y2="${Y(j)}"/>`;
+  if(base===1) s+=`<line class="nut" x1="${X(0)-1}" y1="${Y(0)}" x2="${X(5)+1}" y2="${Y(0)}"/>`;
+  else s+=`<text class="lbl" x="${X(5)+5}" y="${Y(0)+12}">${base}fr</text>`;
+  if(sh.barre&&sh.barre>=base){ const row=sh.barre-base+1; s+=`<rect class="dot" x="${X(sh.rootStr)-5}" y="${Y(row)-13.5}" width="${X(5)-X(sh.rootStr)+10}" height="10" rx="5"/>`; }
+  f.forEach((v,i)=>{
+    if(v===null) s+=`<path class="mute" d="M${X(i)-4} 9l8 8M${X(i)+4} 9l-8 8"/>`;
+    else if(v===0) s+=`<circle class="open" cx="${X(i)}" cy="13" r="4"/>`;
+    else s+=`<circle class="dot" cx="${X(i)}" cy="${Y(v-base+1)-8.5}" r="5.5"/>`;
+  });
+  return s+'</svg>';
+}
+function diagramsHTML(names){
+  return '<div class="diagrams">'+names.map(n=>{
+    const sh=shapeFor(n);
+    if(!sh) return `<div class="dg"><b>${esc(n)}</b><small>${tr('No diagram')}</small></div>`;
+    const cap=[sh.bass?tr('bass note {0}',sh.bass):'',sh.approx?tr('closest shape'):''].filter(Boolean).join(' · ');
+    return `<div class="dg"><b>${esc(n)}</b>${diagramSVG(sh)}${cap?`<small>${esc(cap)}</small>`:''}</div>`;
+  }).join('')+'</div>';
+}
+const chordsIn=text=>(text.match(/[A-G][#b]?[^\s\-→.]*/g)||[]).map(c=>c.replace(/\)$/,'').replace(/^([^(]*\(\+oct)$/,'$1)'));
+
+/* ---------- views ---------- */
+let cur=-1, query='';
+const view=$('view');
+function bpmOf(s){ const st=sstate(s); return Math.round(+st.bpm||+s.bpm||0)||null; }
+
+function songRow(x,showGig){
+  const st=sstate(x), last=store.get('last-'+x.list.id,-1);
+  const shift=st.t-(st.c-(+x.capo||0));
+  const k=keyName(x.key,shift), moved=shift!==0||st.c!==(+x.capo||0);
+  return `<button class="row${x.list===LIST&&x.idx===last?' current':''}${st.played?' played':''}" data-l="${x.list.id}" data-i="${x.idx}">
+    <span class="n">${st.played?'✓':x.no}</span><span class="t">${esc(x.title)}${showGig?`<small>${esc(x.list.name)} · ${esc(x.set)}</small>`:x.artist?`<small>${esc(x.artist)}</small>`:''}</span>
+    <span class="pills"><span class="pill${moved?' moved':''}">${esc(k)}</span>${st.c?`<span class="pill capo">${tr('Capo {0}',st.c)}</span>`:''}</span></button>`;
+}
+function showList(){
+  cur=-1; stopScroll(); $('homeBtn').hidden=true; $('dock').hidden=true; $('title').textContent=LIST.name;
+  const sw='<div class="switch" role="tablist" aria-label="'+tr('Choose gig')+'">'+LISTS.map(l=>
+    `<button role="tab" class="sw" data-gig="${l.id}" aria-selected="${l.id===LIST.id}"><b>${esc(l.name)}</b><small>${songsN(l.songs.filter(x=>x.set!=='Bonus').length)}</small></button>`).join('')+'</div>';
+  const played=SONGS.filter(s=>sstate(s).played).length;
+  const find=`<div class="findrow"><input class="find" id="find" type="search" placeholder="${tr('Find a song in any gig')}" value="${esc(query)}" autocomplete="off">`+
+    (played?`<button class="tbtn" id="clearPlayed">${tr('Clear ✓')} <small>${played}</small></button>`:'')+'</div>';
+  const empty=!seenWelcome()?`<div class="card" id="welcome"><h2>${tr('Welcome')}</h2><p>${tr('This is an example gig. Open a song and try it: change the key, tap a chord, start the metronome, swipe to the next song. Then make your own gig.')}</p>
+    <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make my gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button><button class="tbtn" id="wHelp">${tr('Help')}</button><button class="tbtn" id="wGot">${tr('Got it')}</button></div></div>`
+    :GIGS.length?'':`<div class="card" id="emptyCard"><h2>${tr('Make it yours')}</h2><p>${tr('This is an example gig. Make your own gig and type your songs in, or load a gig file someone sent you.')}</p>
+    <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make your own gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div></div>`;
+  const acts=GIGS.length?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${LIST.ex?'':`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button>`}<button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div>`:'';
+  view.innerHTML='<div class="list">'+sw+empty+acts+find+'<div id="listBody"></div></div>';
+  renderListBody();
+  view.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{ if(b.dataset.gig!==LIST.id){ query=''; location.hash=b.dataset.gig; } });
+  $('find').oninput=e=>{query=e.target.value;renderListBody()};
+  if($('clearPlayed')) $('clearPlayed').onclick=()=>{ SONGS.forEach(s=>saveS(s,{played:false})); toast(tr('Cleared played marks')); showList(); };
+  if($('wGot')) $('wGot').onclick=()=>{ store.set('seenWelcome',true); showList(); };
+  if($('wHelp')) $('wHelp').onclick=openHelp;
+  const c=view.querySelector('.row.current'); if(c&&!query) c.scrollIntoView({block:'center'});
+}
+function renderListBody(){
+  const q=query.trim().toLowerCase(); let html;
+  if(q){
+    const hits=[]; LISTS.forEach(L=>L.songs.forEach(s=>{ if((s.title+' '+(s.artist||'')).toLowerCase().includes(q)) hits.push(s); }));
+    html=hits.length?`<section class="set"><h2>${tr('Results')} <small>${hits.length}</small></h2><div class="songs">${hits.map(s=>songRow(s,true)).join('')}</div></section>`
+      :`<p class="empty">${tr('No song called “{0}”.',esc(query))}</p>`;
+  } else {
+    html=SETS.map(s=>{
+      const n=s.songs.filter(x=>x.title).length;
+      return `<section class="set">${s.name?`<h2>${esc(s.name)} <small>${songsN(n)}</small></h2>`:''}<div class="songs">`+
+        s.songs.map(x=>x.title?songRow(x,false):`<div class="brk">${esc(x.break)}</div>`).join('')+'</div></section>';
+    }).join('');
+  }
+  $('listBody').innerHTML=html;
+  $('listBody').querySelectorAll('.row').forEach(b=>b.onclick=()=>{ location.hash=b.dataset.l+'-'+(+b.dataset.i+1); });
+}
+
+function showSong(i){
+  if(cur!==i) stopScroll();
+  cur=i; store.set('last-'+LIST.id,i);
+  const s=SONGS[i], st=sstate(s), c0=+s.capo||0;
+  const shift=st.t-(st.c-c0);
+  const shapeKey=keyName(s.key,shift), soundKey=keyName(s.key,c0+st.t), flats=useFlats(shapeKey);
+  const bpm=bpmOf(s);
+  $('homeBtn').hidden=false; $('dock').hidden=false;
+  $('title').innerHTML=`<span class="num">${s.no}</span>${esc(s.title)}`;
+  let h=`<article class="song">
+   <div class="tb">
+     <div class="step${st.t?' moved':''}"><button data-act="key-" aria-label="${tr('Key down a semitone')}">−</button><span class="v"><small>${tr('Key')}</small><b>${esc(shapeKey)}</b></span><button data-act="key+" aria-label="${tr('Key up a semitone')}">+</button></div>
+     <div class="step${st.c!==c0?' moved':''}"><button data-act="capo-" aria-label="${tr('Capo down')}">−</button><span class="v"><small>${tr('Capo')}</small><b>${st.c||'–'}</b></span><button data-act="capo+" aria-label="${tr('Capo up')}">+</button></div>
+     <button class="tbtn" data-act="tempo">♩ ${bpm?bpm:'–'} <small>BPM</small></button>
+     <button class="tbtn" data-act="chords">${tr('Chords')}</button>
+     <button class="tbtn" data-act="played" aria-pressed="${st.played}">${st.played?tr('✓ Played'):tr('Mark played')}</button>
+     ${LIST.ex?'':`<button class="tbtn" data-act="edit">${tr('✎ Edit')}</button>`}
+   </div>
+   <p class="sub">${s.artist?`<span><b>${esc(s.artist)}</b></span>`:''}${s.web?`<span class="webflag">${tr('Chart from the internet · check it')}</span>`:''}${st.c?`<span>${tr('Sounds in')} <b>${esc(soundKey)}</b></span>`:''}${st.t||st.c!==c0?`<span>${tr('Original:')} <b>${esc(s.key)}${c0?' '+tr('capo')+' '+c0:''}</b> <button class="tbtn" style="height:30px;padding:0 10px" data-act="reset">${tr('Reset')}</button></span>`:''}<span>${esc(LIST.name)} · ${esc(s.set)} · ${tr('{0} of {1}',s.idx+1,SONGS.length)}</span></p>${s.tip?`<p class="tip">${esc(s.tip[prefs.lang]||s.tip.en||'')}</p>`:''}`;
+  s.sections.forEach(sec=>{
+    h+=`<div class="sec${sec.l?'':' cont'}"><div class="sec-l">${esc(sec.l)}</div><div class="sec-b">`+
+      sec.c.map(l=>'<div class="ln">'+tokens(l).map(t=>{
+        if(t.k==='ch'){const v=xform(t.v,shift,flats);return `<span class="ch" role="button" tabindex="0" data-ch="${esc(v)}">${esc(v)}</span>`}
+        return `<span class="${t.k==='rep'?'rep':t.k==='loud'?'note loud':'note'}">${esc(t.v)}</span>`;
+      }).join('')+'</div>').join('')+'</div></div>';
+  });
+  if(!s.sections.length) h+=`<p class="empty">${LIST.ex?'':tr('No chords yet. Tap ✎ Edit to add them.')}</p>`;
+  if(s.web) h+=`<div class="srcs"><b>${tr('Where these chords come from')}</b>${s.webNote?`<p>${esc(s.webNote)}</p>`:''}${(s.sources||[]).filter(u=>/^https?:\/\//i.test(u)).map(u=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\/(www\.)?/,'').slice(0,60))}</a>`).join('')}</div>`;
+  h+=`<div class="mynote"><label for="mynote">${tr('My notes')}</label><textarea id="mynote" placeholder="${tr('Cues, who starts, lyrics you forget… (saved on this device)')}">${esc(st.note)}</textarea></div></article>`;
+  view.innerHTML=h;
+  $('mynote').oninput=e=>saveS(s,{note:e.target.value});
+  const p=SONGS[i-1],n=SONGS[i+1];
+  $('prevBtn').disabled=!p; $('prevT').textContent=p?p.title:'—';
+  $('nextBtn').disabled=!n; $('nextT').textContent=n?n.title:tr('End of setlist');
+  if(metro.on&&metro.song!==s) metroStop();
+}
+function rerender(){ const y=window.scrollY; showSong(cur); window.scrollTo(0,y); }
+
+view.addEventListener('click',e=>{
+  if(cur<0){ const a=e.target.closest('[data-act]'); if(!a||editing) return;
+    if(a.dataset.act==='newgig') newGig(); else if(a.dataset.act==='editgig') location.hash='edit-'+LIST.id; else if(a.dataset.act==='loadfile'&&typeof pickFile==='function') pickFile();
+    return; }
+  const s=SONGS[cur];
+  const ch=e.target.closest('.ch');
+  if(ch){ openChordSheet(ch.dataset.ch); return; }
+  const b=e.target.closest('[data-act]'); if(!b) return;
+  const st=sstate(s), c0=+s.capo||0;
+  switch(b.dataset.act){
+    case 'key-': saveS(s,{t:st.t-1}); rerender(); break;
+    case 'key+': saveS(s,{t:st.t+1}); rerender(); break;
+    case 'capo-': if(st.c>0){saveS(s,{c:st.c-1}); rerender();} break;
+    case 'capo+': if(st.c<9){saveS(s,{c:st.c+1}); rerender();} break;
+    case 'reset': saveS(s,{t:0,c:c0}); rerender(); toast(tr('Back to original key')); break;
+    case 'played': saveS(s,{played:!st.played}); rerender(); break;
+    case 'chords': openSongChords(); break;
+    case 'edit': openSongEditor(LIST.id,s); break;
+    case 'tempo': openTempo(); break;
+  }
+});
+view.addEventListener('keydown',e=>{ const ch=e.target.closest&&e.target.closest('.ch'); if(ch&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openChordSheet(ch.dataset.ch)} });
+
+/* ---------- sheets ---------- */
+function openSheet(title,body,onMount){
+  $('sheetHost').innerHTML=`<div class="shade" id="shade"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="sheet-h"><h3>${esc(title)}</h3><button class="tool" id="sheetClose" aria-label="${tr('Close')}">✕</button></div>${body}</div></div>`;
+  $('shade').onclick=e=>{ if(e.target.id==='shade') closeSheet(); };
+  $('sheetClose').onclick=closeSheet;
+  if(onMount) onMount();
+}
+function closeSheet(){ $('sheetHost').innerHTML=''; }
+const sheetOpen=()=>!!$('shade');
+
+function openChordSheet(text){
+  const parts=text.split(/[\s\-→]+|\.\.\./).filter(Boolean);
+  if(parts.length>4&&parts.every(p=>/^[A-G][#b]?5?$/.test(p))){
+    openSheet(text,`<p class="sub">${tr('Single-note riff:')} <b>${esc(parts.join(' · '))}</b></p>`); return;
+  }
+  const uniq=[...new Set(chordsIn(text))];
+  openSheet(uniq.join(' · '),diagramsHTML(uniq));
+}
+function openSongChords(){
+  const s=SONGS[cur], uniq=[];
+  view.querySelectorAll('.ch').forEach(c=>{
+    const parts=c.dataset.ch.split(/[\s\-→]+|\.\.\./).filter(Boolean);
+    if(parts.length>4&&parts.every(p=>/^[A-G][#b]?5?$/.test(p))) return; // skip riffs
+    chordsIn(c.dataset.ch).forEach(n=>{ if(!uniq.includes(n)) uniq.push(n); });
+  });
+  openSheet(tr('Chords in {0}',s.title),diagramsHTML(uniq));
+}
+function segHTML(id,opts,val){ return `<div class="seg" id="${id}">`+opts.map(([v,l])=>`<button data-v="${v}" aria-pressed="${String(v)===String(val)}">${l}</button>`).join('')+'</div>'; }
+function openOptions(){
+  openSheet(tr('Settings'),`<div class="opts">
+    <div class="opt"><span>${tr('Language')}<small>English · Български</small></span>${segHTML('optLang',[['en','EN'],['bg','БГ']],prefs.lang)}</div>
+    <div class="opt"><span>${tr('Text size')}<small id="sizeLbl">${Math.round(prefs.scale*100)}%</small></span>${segHTML('optSize',[['-','A−'],['+','A+']],'')}</div>
+    <div class="opt"><span>${tr('Look')}<small>${tr('Stage is dark, Daylight for sun')}</small></span>${segHTML('optTheme',[['dark',tr('Stage')],['light',tr('Daylight')]],isDark()?'dark':'light')}</div>
+    <div class="opt"><span>${tr('Keep screen on')}<small>${tr('While this page is open')}</small></span>${segHTML('optWake',[['on',tr('On')],['off',tr('Off')]],lock?'on':'off')}</div>
+    <div class="opt"><span>${tr('Simplify chords')}<small>Am7 → Am, Cadd9 → C, D/F# → D</small></span>${segHTML('optSimple',[['1',tr('On')],['0',tr('Off')]],prefs.simple?'1':'0')}</div>
+    <div class="opt"><span>${tr('Sharps or flats')}<small>${tr('How transposed chords are spelled')}</small></span>${segHTML('optAcc',[['auto',tr('Auto')],['sharp','♯'],['flat','♭']],prefs.acc)}</div>
+    ${GIGS.length?`<div class="opt"><span>${tr('Example gig')}<small>${tr('Show it next to your own gigs')}</small></span>${segHTML('optEx',[['show',tr('Show')],['hide',tr('Hide')]],prefs.hideExample?'hide':'show')}</div>`:''}
+    <div class="opt"><span>${tr('My gigs')}<small>${tr('Save all your gigs to one file (backup), or load a file')}</small></span><div class="acts">${GIGS.length?`<button class="tbtn" id="oSaveAll">${tr('Save all')}</button>`:''}<button class="tbtn" id="oLoad">${tr('Load')}</button></div></div>
+    <div class="opt"><span>${tr('Help')}<small>${tr('How to use the app')}</small></span><button class="tbtn" id="oHelp">${tr('Open')}</button></div>
+  </div>`,()=>{
+    const wire=(id,fn)=>$(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{fn(b.dataset.v);$(id).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b&&id!=='optSize')))});
+    wire('optSize',v=>{setScale(prefs.scale+(v==='+'?.1:-.1));$('sizeLbl').textContent=Math.round(prefs.scale*100)+'%'});
+    wire('optTheme',v=>{document.documentElement.dataset.theme=v;prefs.theme=v;savePrefs()});
+    wire('optWake',v=>{ v==='on'?wakeOn():wakeOff(); });
+    wire('optSimple',v=>{prefs.simple=v==='1';savePrefs();refresh()});
+    wire('optAcc',v=>{prefs.acc=v;savePrefs();refresh()});
+    wire('optLang',v=>{prefs.lang=v;savePrefs();applyStatic();refresh();openOptions()});
+    if($('optEx')) wire('optEx',v=>{prefs.hideExample=v==='hide';savePrefs();rebuild();useList(LISTS.some(l=>l.id===LIST.id)?LIST.id:LISTS[0].id);if(cur<0)refresh()});
+    if($('oSaveAll')) $('oSaveAll').onclick=()=>saveFile(GIGS,'my-gigs.setlist.json');
+    $('oLoad').onclick=()=>{closeSheetQuiet();pickFile()};
+    $('oHelp').onclick=openHelp;
+  });
+}
+const refresh=()=>{ cur>=0?rerender():editing?showGigEditor(editing):$('listBody')&&showList(); };
+$('optBtn').onclick=openOptions;
+
+/* ---------- text size / theme ---------- */
+function setScale(v){prefs.scale=Math.min(1.8,Math.max(.75,Math.round(v*100)/100));document.documentElement.style.setProperty('--scale',prefs.scale);savePrefs()}
+setScale(prefs.scale);
+function isDark(){const t=document.documentElement.dataset.theme;return t?t==='dark':!matchMedia('(prefers-color-scheme: light)').matches}
+if(prefs.theme) document.documentElement.dataset.theme=prefs.theme;
+
+/* ---------- wake lock ---------- */
+let lock=null,wantLock=false;
+async function wakeOn(){
+  wantLock=true;
+  if(!('wakeLock' in navigator)){toast(tr('Can’t keep the screen on here — raise Auto-Lock in settings'));return}
+  try{ lock=await navigator.wakeLock.request('screen'); lock.addEventListener('release',()=>{lock=null}); toast(tr('Screen stays on')); }
+  catch(e){ lock=null; toast(tr('Screen lock not allowed here')); }
+}
+async function wakeOff(){ wantLock=false; try{ if(lock) await lock.release(); }catch(e){} lock=null; toast(tr('Screen can turn off')); }
+document.addEventListener('visibilitychange',async()=>{ if(wantLock&&document.visibilityState==='visible'&&!lock){ try{lock=await navigator.wakeLock.request('screen')}catch(e){} } });
+
+/* ---------- auto-scroll ---------- */
+let scrolling=false, rafId=0, lastT=0, acc=0;
+const pxPerSec=()=>6+prefs.speed*6;
+function scrollTick(t){
+  if(!scrolling) return;
+  if(lastT){ acc+=pxPerSec()*(t-lastT)/1000; const step=Math.floor(acc); if(step){ window.scrollBy(0,step); acc-=step; } }
+  lastT=t;
+  if(window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-2){ stopScroll(); toast(tr('End of song')); return; }
+  rafId=requestAnimationFrame(scrollTick);
+}
+function startScroll(){ scrolling=true; lastT=0; acc=0; rafId=requestAnimationFrame(scrollTick); syncScrollUI(); if(!lock&&!wantLock) wakeOn(); }
+function stopScroll(){ scrolling=false; cancelAnimationFrame(rafId); syncScrollUI(); }
+function syncScrollUI(){ $('scroller').classList.toggle('on',scrolling); $('scrollIcon').textContent=scrolling?'❚❚':'▶'; $('scrollSpd').textContent='SPD '+prefs.speed; }
+$('scrollBtn').onclick=()=>scrolling?stopScroll():startScroll();
+$('slower').onclick=()=>{prefs.speed=Math.max(1,prefs.speed-1);savePrefs();syncScrollUI()};
+$('faster').onclick=()=>{prefs.speed=Math.min(15,prefs.speed+1);savePrefs();syncScrollUI()};
+syncScrollUI();
+
+/* ---------- metronome ---------- */
+const metro={on:false,ctx:null,next:0,beat:0,timer:0,song:null,bpm:100,left:-1,taps:[]};
+function click(time,accent){
+  const c=metro.ctx, o=c.createOscillator(), g=c.createGain();
+  o.frequency.value=accent?1600:1000; g.gain.setValueAtTime(.0001,time);
+  g.gain.exponentialRampToValueAtTime(.6,time+.002); g.gain.exponentialRampToValueAtTime(.0001,time+.06);
+  o.connect(g).connect(c.destination); o.start(time); o.stop(time+.07);
+  const b=metro.beat, delay=Math.max(0,(time-c.currentTime)*1000);
+  setTimeout(()=>{ if(!metro.on) return; const d=$('beat'); d.hidden=false; d.className='beat on'+(b===0?' one':''); setTimeout(()=>d.className='beat',90); },delay);
+}
+function schedule(){
+  const c=metro.ctx;
+  while(metro.next<c.currentTime+.12){
+    click(metro.next,metro.beat===0);
+    metro.next+=60/metro.bpm; metro.beat=(metro.beat+1)%4;
+    if(metro.left>0&&--metro.left===0){ clearInterval(metro.timer); setTimeout(metroStop,Math.max(0,(metro.next-c.currentTime)*1000)); return; }
+  }
+}
+function metroStart(countIn){
+  try{ metro.ctx=metro.ctx||new (window.AudioContext||window.webkitAudioContext)(); metro.ctx.resume(); }catch(e){ toast(tr('Sound isn’t available here')); return; }
+  clearInterval(metro.timer);
+  metro.on=true; metro.song=SONGS[cur]; metro.beat=0; metro.left=countIn?4:-1; metro.next=metro.ctx.currentTime+.06;
+  metro.timer=setInterval(schedule,25); schedule(); syncMetroUI();
+}
+function metroStop(){ metro.on=false; clearInterval(metro.timer); $('beat').hidden=true; syncMetroUI(); }
+function syncMetroUI(){ const b=$('mStart'); if(b){ b.textContent=metro.on&&metro.left<0?tr('Stop'):tr('Start'); } }
+function openTempo(){
+  const s=SONGS[cur]; metro.bpm=bpmOf(s)||100;
+  openSheet(tr('Tempo · {0}',s.title),`
+    <div class="bigbpm" id="mBpm">${metro.bpm}</div><p class="sub" style="justify-content:center">${bpmOf(s)?'BPM':tr('No tempo saved yet — tap or set one')}</p>
+    <div class="bpmrow"><button class="tbtn" data-d="-5">−5</button><button class="tbtn" data-d="-1">−1</button><button class="tbtn" data-d="1">+1</button><button class="tbtn" data-d="5">+5</button></div>
+    <div class="bpmrow"><button class="tbtn" id="mTap">${tr('Tap tempo')}</button><button class="tbtn" id="mCount">${tr('Count in 4')}</button><button class="tbtn primary" id="mStart">${tr('Start')}</button></div>
+    <p class="sub" style="justify-content:center;margin-top:14px">${tr('Changes are saved for this song on this device.')}</p>`,()=>{
+    const setB=v=>{ metro.bpm=Math.min(240,Math.max(30,Math.round(v))); $('mBpm').textContent=metro.bpm; saveS(s,{bpm:metro.bpm}); };
+    $('sheetHost').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>setB(metro.bpm+(+b.dataset.d)));
+    $('mTap').onclick=()=>{ const now=performance.now(); metro.taps=metro.taps.filter(t=>now-t<2500); metro.taps.push(now);
+      if(metro.taps.length>=2){ const d=metro.taps.slice(-5); setB(60000/((d[d.length-1]-d[0])/(d.length-1))); } };
+    $('mCount').onclick=()=>metroStart(true);
+    $('mStart').onclick=()=>metro.on&&metro.left<0?metroStop():metroStart(false);
+    syncMetroUI();
+  });
+}
+// leaving the tempo sheet keeps the click going; tap the beat dot to stop it
+$('beat').onclick=metroStop;
+const _close=closeSheet; closeSheet=function(){ _close(); if(cur>=0) rerender(); };
+
+/* ---------- editing gigs and songs ---------- */
+let editing=null;
+const gigById=id=>GIGS.find(g=>g.id===id);
+const SAVE_FAIL='Couldn’t save on this device. Is storage full or private browsing on?';
+function commit(gigs){ if(!saveGigs(gigs)){ toast(tr(SAVE_FAIL)); return false; } rebuild(); return true; }
+const plainSong=x=>{ const y=Object.assign({},x); delete y.set; delete y.idx; delete y.list; delete y.no; return y; };
+function newGig(){
+  const g={id:newId(Date.now()),name:tr('My gig'),sets:[{name:'',songs:[]}]};
+  if(commit(GIGS.concat([g]))) location.hash='edit-'+g.id;
+}
+function showGigEditor(id){
+  const g=gigById(id); if(!g){ location.hash=''; return; }
+  editing=id; cur=-1; stopScroll(); $('homeBtn').hidden=false; $('dock').hidden=true; $('title').textContent=tr('Edit gig');
+  const items=flattenGig(g);
+  const row=(it,i)=>`<div class="it">${it.k==='set'?`<input class="find itset" data-i="${i}" value="${esc(it.name)}" placeholder="${tr('Set name')}" aria-label="${tr('Set name')}">`
+    :it.k==='break'?`<input class="find itbrk" data-i="${i}" value="${esc(it.text)}" placeholder="${tr('Break')}" aria-label="${tr('Break text')}">`
+    :`<button class="ittitle" data-edit="${i}"><b>${esc(it.song.title)}</b><small>${esc([it.song.artist,it.song.key].filter(Boolean).join(' · '))}</small></button>`}
+    <span class="itb"><button class="tool" data-mv="-1" data-i="${i}" aria-label="${tr('Move up')}"${i?'':' disabled'}>↑</button><button class="tool" data-mv="1" data-i="${i}" aria-label="${tr('Move down')}"${i<items.length-1?'':' disabled'}>↓</button><button class="tool" data-del="${i}" aria-label="${tr('Remove')}">✕</button></span></div>`;
+  view.innerHTML=`<div class="list gedit">
+    <label class="fl">${tr('Gig name')}<input class="find" id="gigName" value="${esc(g.name)}" maxlength="40" autocomplete="off"></label>
+    <div class="items">${items.map(row).join('')||`<p class="empty">${tr('No songs yet. Add your first song.')}</p>`}</div>
+    <div class="acts"><button class="tbtn primary" id="addSong">${tr('＋ Song')}</button><button class="tbtn" id="addSet">${tr('＋ Set')}</button><button class="tbtn" id="addBreak">${tr('＋ Break')}</button></div>
+    <div class="acts" id="gigActs"><button class="tbtn" id="saveGigFile">${tr('Save gig to file')}</button><button class="tbtn" id="delGig">${tr('Delete gig')}</button><button class="tbtn primary" id="doneGig">${tr('Done')}</button></div></div>`;
+  const put=list=>{ if(commit(GIGS.map(x=>x.id===id?Object.assign({},x,{sets:unflattenGig(list)}):x))) showGigEditor(id); };
+  $('gigName').onchange=e=>{ const v=e.target.value.trim()||tr('My gig'); if(commit(GIGS.map(x=>x.id===id?Object.assign({},x,{name:v}):x))){ showGigEditor(id); toast(tr('Saved')); } };
+  view.querySelectorAll('.itset,.itbrk').forEach(inp=>inp.onchange=()=>{ const it=items[+inp.dataset.i]; if(it.k==='set') it.name=inp.value.trim(); else it.text=inp.value.trim()||tr('Break'); put(items); });
+  view.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.i, j=i+(+b.dataset.mv); if(j<0||j>=items.length) return; [items[i],items[j]]=[items[j],items[i]]; put(items); });
+  view.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.del, it=items[i]; if(it.k==='song'&&!confirm(tr('Remove “{0}” from this gig?',it.song.title))) return; items.splice(i,1); put(items); });
+  view.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openSongEditor(id,items[+b.dataset.edit].song));
+  $('addSong').onclick=()=>openSongEditor(id,null);
+  $('addSet').onclick=()=>{ items.push({k:'set',name:tr('Set {0}',unflattenGig(items).length+1)}); put(items); };
+  $('addBreak').onclick=()=>{ items.push({k:'break',text:tr('Break')}); put(items); };
+  $('delGig').onclick=()=>{ if(!confirm(tr('Delete the gig “{0}” from this device?',g.name))) return; if(commit(GIGS.filter(x=>x.id!==id))){ store.set('list',LISTS[0].id); location.hash=''; toast(tr('Gig deleted')); } };
+  $('doneGig').onclick=()=>{ location.hash=id; };
+  $('saveGigFile').onclick=()=>saveFile([g]);
+}
+function openSongEditor(gigId,song){
+  const s=song||{title:'',artist:'',key:'',capo:'',sections:[]};
+  openSheet(song?tr('Edit song'):tr('New song'),`<div class="form">
+    <label>${tr('Title')}<input id="fTitle" value="${esc(s.title)}" maxlength="80" autocomplete="off"></label>
+    <label>${tr('Artist')}<input id="fArtist" value="${esc(s.artist||'')}" maxlength="80" autocomplete="off"></label>
+    <div class="frow"><label>${tr('Key')}<input id="fKey" value="${esc(s.key||'')}" placeholder="G, Am…" maxlength="6" autocomplete="off" autocorrect="off"></label>
+      <label>${tr('Capo')}<input id="fCapo" type="number" inputmode="numeric" min="0" max="9" value="${esc(s.capo||'')}" placeholder="0"></label>
+      <label>BPM<input id="fBpm" type="number" inputmode="numeric" min="30" max="240" value="${s.bpm||''}" placeholder="–"></label></div>
+    <label>${tr('Chords')}<textarea id="fChart" class="chart" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Verse&#10;G | D | Am | C  x2">${esc(serializeChart(s.sections))}</textarea></label>
+    <p class="hint">${tr('Section name on its own line. Chords separated by {0}. Add {1} at the end of a line to repeat it.','<b>|</b>','<b>x2</b>')} <button class="linkbtn" id="fSample">${tr('Show example')}</button></p>
+    <div class="acts"><button class="tbtn primary" id="fSave">${tr('Save')}</button><button class="tbtn" id="fCancel">${tr('Cancel')}</button>${song?`<button class="tbtn" id="fDelete">${tr('Delete song')}</button>`:''}</div></div>`,()=>{
+    $('fCancel').onclick=closeSheetQuiet;
+    $('fSample').onclick=()=>{ if(!$('fChart').value.trim()) $('fChart').value='Verse\nG | D | Am | C  x2\nChorus\nC | G | D | D'; };
+    const edit=fn=>GIGS.map(g=>{ if(g.id!==gigId) return g; const sets=g.sets.map(st=>Object.assign({},st,{songs:st.songs.slice()})); fn(sets); return Object.assign({},g,{sets}); });
+    $('fSave').onclick=()=>{
+      const title=$('fTitle').value.trim(); if(!title){ toast(tr('Give the song a title')); $('fTitle').focus(); return; }
+      const sections=parseChart($('fChart').value);
+      const key=$('fKey').value.trim()||((sections.map(x=>x.c.join(' ')).join(' ').match(/[A-G][#b]?(?:m(?!aj))?/)||['C'])[0]);
+      const capo=Math.max(0,Math.min(9,parseInt($('fCapo').value)||0)), bpm=parseInt($('fBpm').value)||0;
+      const data=Object.assign(song?plainSong(song):{},{title,artist:$('fArtist').value.trim(),key,capo:capo?String(capo):'',sections});
+      if(bpm) data.bpm=Math.max(30,Math.min(240,bpm)); else delete data.bpm;
+      let found=!song;
+      const gigs=edit(sets=>{ if(song){ sets.forEach(st=>{ const i=st.songs.indexOf(song); if(i>=0){ st.songs[i]=data; found=true; } }); }
+        else { if(!sets.length) sets.push({name:'',songs:[]}); sets[sets.length-1].songs.push(data); } });
+      if(!found||!saveGigs(gigs)){ toast(tr(SAVE_FAIL)); return; }
+      // move saved key/capo/notes with the song, but never over another song's saved state
+      if(song&&song.title!==title){ const o='song:'+gigId+':'+song.title, n='song:'+gigId+':'+title, v=store.get(o,null);
+        if(v!==null&&store.get(n,null)===null&&store.set(n,v)) store.del(o); }
+      rebuild(); closeSheetQuiet(); route(); toast(tr('Saved'));
+    };
+    if($('fDelete')) $('fDelete').onclick=()=>{ if(!confirm(tr('Delete “{0}”?',s.title))) return;
+      if(commit(edit(sets=>sets.forEach(st=>{ const i=st.songs.indexOf(song); if(i>=0) st.songs.splice(i,1); })))){ closeSheetQuiet(); route(); toast(tr('Song deleted')); } };
+  });
+}
+
+/* ---------- files: save and load ---------- */
+const today=()=>new Date().toISOString().slice(0,10);
+function downloadJSON(name,obj){
+  const text=JSON.stringify(obj,null,1), blob=new Blob([text],{type:'application/json'});
+  try{ const f=new File([blob],name,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})&&/iPhone|iPad|Android/i.test(navigator.userAgent)){ navigator.share({files:[f],title:name}).catch(()=>{}); return; } }catch(e){}
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+}
+const fileName=n=>(n.replace(/[\\/:*?"<>|]+/g,'').trim()||'gig')+'.setlist.json';
+function saveFile(gigs,name){ downloadJSON(name||fileName(gigs[0].name),makeGigFile(gigs.map(plainGig),today())); }
+function pickFile(){ $('gigFile').click(); }
+function finishImport(incoming,mode){
+  const before=new Set(GIGS.map(g=>g.id));
+  if(!commit(applyImport(GIGS.map(plainGig),incoming,mode))) return;
+  closeSheetQuiet(); toast(incoming.length===1?tr('Loaded 1 gig'):tr('Loaded {0} gigs',incoming.length));
+  // open the file's first gig: a new one if it was added, else the one it replaced
+  const first=mode==='keep'&&before.has(incoming[0].id)?GIGS.find(g=>!before.has(g.id)):gigById(incoming[0].id);
+  if(location.hash==='#'+first.id) route(); else location.hash=first.id;
+}
+function importText(text){
+  let o=null; try{ o=JSON.parse(text); }catch(e){}
+  const v=validateGigFile(o); if(!v.ok){ toast(tr('That isn’t a setlist file')); return; }
+  const clash=importConflicts(GIGS,v.gigs);
+  if(!clash.length){ finishImport(v.gigs,'keep'); return; }
+  const names=clash.map(id=>gigById(id).name);
+  openSheet(tr('Already on this device'),`<p class="hint" style="margin-bottom:14px">${tr(clash.length===1?'This gig is already here: {0}. Replace it with the file, or keep both?':'These gigs are already here: {0}. Replace them with the file, or keep both?','<b>'+names.map(esc).join(', ')+'</b>')}</p>
+    <div class="acts"><button class="tbtn primary" id="impReplace">${tr('Replace')}</button><button class="tbtn" id="impKeep">${tr('Keep both')}</button><button class="tbtn" id="impCancel">${tr('Cancel')}</button></div>`,()=>{
+    $('impReplace').onclick=()=>finishImport(v.gigs,'replace');
+    $('impKeep').onclick=()=>finishImport(v.gigs,'keep');
+    $('impCancel').onclick=closeSheetQuiet;
+  });
+}
+$('gigFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  const rd=new FileReader(); rd.onload=()=>importText(rd.result); rd.onerror=()=>toast(tr('Couldn’t read that file')); rd.readAsText(f); };
+
+/* ---------- navigation ---------- */
+function go(i){ location.hash = i<0 ? LIST.id : LIST.id+'-'+(i+1); }
+function route(){
+  closeSheetQuiet(); editing=null;
+  const em=location.hash.match(/^#edit-([a-z0-9]+)$/);
+  if(em&&gigById(em[1])){ useList(em[1]); showGigEditor(em[1]); return; }
+  const m=location.hash.match(/^#([a-z0-9]+)(?:-(\d+))?$/);
+  useList(m&&LISTS.some(l=>l.id===m[1]) ? m[1] : store.get('list',LISTS[0].id));
+  const i=m&&m[2]?+m[2]-1:-1;
+  if(i>=0&&i<SONGS.length){ const y=(i===cur)?window.scrollY:0; showSong(i); window.scrollTo(0,y); } else showList();
+}
+function closeSheetQuiet(){ $('sheetHost').innerHTML=''; }
+window.addEventListener('hashchange',route);
+$('homeBtn').onclick=()=>go(-1);
+$('prevBtn').onclick=()=>cur>0&&go(cur-1);
+$('nextBtn').onclick=()=>cur<SONGS.length-1&&go(cur+1);
+
+let tx=0,ty=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+document.addEventListener('touchend',e=>{
+  if(cur<0||sheetOpen()) return;
+  if(e.target.closest&&e.target.closest('textarea')) return;
+  const dx=e.changedTouches[0].clientX-tx, dy=e.changedTouches[0].clientY-ty;
+  if(Math.abs(dx)>70&&Math.abs(dy)<50){ dx<0?$('nextBtn').click():$('prevBtn').click(); }
+},{passive:true});
+document.addEventListener('keydown',e=>{
+  if(e.target.matches&&e.target.matches('input,textarea')) return;
+  if(e.key==='Escape'){ sheetOpen()?closeSheet():cur>=0&&go(-1); return; }
+  if(cur<0||sheetOpen()) return;
+  const atBottom=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-4, atTop=window.scrollY<=2;
+  if(e.key==='ArrowRight'){e.preventDefault();$('nextBtn').click()}
+  else if(e.key==='ArrowLeft'){e.preventDefault();$('prevBtn').click()}
+  else if(e.key==='PageDown'){e.preventDefault(); atBottom?$('nextBtn').click():window.scrollBy(0,window.innerHeight*.75)}
+  else if(e.key==='PageUp'){e.preventDefault(); atTop?$('prevBtn').click():window.scrollBy(0,-window.innerHeight*.75)}
+  else if(e.key==='s'){ scrolling?stopScroll():startScroll(); }
+});
+
+route();
+// Works offline once opened (GitHub Pages only)
+if('serviceWorker' in navigator&&location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>

@@ -1,0 +1,107 @@
+[
+ {
+  "id": "example",
+  "name": "Example gig",
+  "sets": [
+   {
+    "name": "Set 1",
+    "songs": [
+     {
+      "title": "Knockin' on Heaven's Door",
+      "artist": "Bob Dylan",
+      "key": "G",
+      "capo": "",
+      "bpm": 69,
+      "tip": {
+       "en": "Tap a chord to see how to play it. Use Key − / + to move the song up or down. Tap ♩ 69 for the metronome.",
+       "bg": "Натисни акорд, за да видиш как се хваща. С Тон − / + местиш песента нагоре или надолу. Натисни ♩ 69 за метронома."
+      },
+      "sections": [
+       {
+        "l": "Intro",
+        "c": [
+         "│ G │ D │ Am │ Am │"
+        ]
+       },
+       {
+        "l": "Verse",
+        "c": [
+         "│ G │ D │ Am │ Am │",
+         "│ G │ D │ C │ C │  /x2/"
+        ]
+       },
+       {
+        "l": "Chorus",
+        "c": [
+         "│ G │ D │ Am │ Am │",
+         "│ G │ D │ C │ C │  /x2/"
+        ]
+       },
+       {
+        "l": "Outro",
+        "c": [
+         "│ G │ D │ C │ C │  /SLOW DOWN/"
+        ]
+       }
+      ]
+     },
+     {
+      "break": "Break 15 min"
+     }
+    ]
+   },
+   {
+    "name": "Set 2",
+    "songs": [
+     {
+      "title": "Let It Be",
+      "artist": "The Beatles",
+      "key": "C",
+      "capo": "",
+      "bpm": 72,
+      "tip": {
+       "en": "Try Capo + : the chord shapes change but the song still sounds the same. Press ▶ to auto-scroll, and swipe to move between songs.",
+       "bg": "Пробвай Капо + : позициите на акордите се сменят, но песента звучи същото. Натисни ▶ за авто-скрол и плъзни, за да сменяш песните."
+      },
+      "sections": [
+       {
+        "l": "Intro",
+        "c": [
+         "│ C │ G │ Am │ F │",
+         "│ C │ G │ F C/E │ Dm7 C │"
+        ]
+       },
+       {
+        "l": "Verse",
+        "c": [
+         "│ C │ G │ Am │ F │",
+         "│ C │ G │ F C/E │ Dm7 C │  /x2/"
+        ]
+       },
+       {
+        "l": "Chorus",
+        "c": [
+         "│ Am │ G │ F │ C │",
+         "│ C │ G │ F C/E │ Dm7 C │"
+        ]
+       },
+       {
+        "l": "Solo",
+        "c": [
+         "│ C │ G │ Am │ F │",
+         "│ C │ G │ F C/E │ Dm7 C │"
+        ]
+       },
+       {
+        "l": "Outro",
+        "c": [
+         "│ F C/E │ Dm7 C │  /LAST TIME SLOW/"
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+]

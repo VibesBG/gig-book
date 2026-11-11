@@ -1,0 +1,133 @@
+<!doctype html><meta charset="utf-8"><body>
+<script src="ui.js"></script>
+<script>
+const BAR=[{id:'mybar',name:'Friday Bar',sets:[{name:'Set 1',songs:[{title:'Tune A',key:'A',capo:'',sections:[{l:'Verse',c:['│ A │ D │']}]}]}]}];
+run([
+ ['T2 example shown + empty card when no gigs', async()=>{ const d=await open('',{'ag-seenWelcome':true});
+   ok('example tab', !!d.querySelector('.sw[data-gig="example"]'));
+   ok('empty card', !!d.getElementById('emptyCard')); }],
+ ['T2 owner state survives (keys unchanged)', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-song:mybar:Tune A':{t:2}});
+   const pill=d.querySelector('.row .pill'); ok('transposed pill B', pill&&pill.textContent==='B', pill&&pill.textContent);
+   ok('no empty card with gigs', !d.getElementById('emptyCard')); }],
+ ['T2 hide example', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-prefs':{hideExample:true}});
+   ok('example hidden', !d.querySelector('.sw[data-gig="example"]')); }],
+ ['T2 alnum gig id routes', async()=>{ const d=await open('#u1abc-1',{'ag-gigs':[Object.assign({},BAR[0],{id:'u1abc',name:'Mine'})]});
+   ok('song view', d.getElementById('title').textContent.includes('Tune A'), d.getElementById('title').textContent); }],
+ ['T3 new gig from empty card', async()=>{ const d=await open('');
+   d.querySelector('[data-act="newgig"]').click(); await sleep(200);
+   const g=JSON.parse(localStorage.getItem('ag-gigs')||'[]');
+   ok('one gig saved', g.length===1, g.length); ok('in editor', /^#edit-u[a-z0-9]+$/.test(frame.contentWindow.location.hash), frame.contentWindow.location.hash);
+   ok('name field', !!d.getElementById('gigName')); }],
+ ['T3 add song by typing', async()=>{ const d=await open('#edit-u1',{'ag-gigs':[{id:'u1',name:'Mine',sets:[{name:'',songs:[]}]}]});
+   d.getElementById('addSong').click(); await sleep(100);
+   d.getElementById('fTitle').value='Test'; d.getElementById('fKey').value='G'; d.getElementById('fChart').value='Verse\nG | D | Am  x2';
+   d.getElementById('fSave').click(); await sleep(100);
+   const s=JSON.parse(localStorage.getItem('ag-gigs'))[0].sets[0].songs[0];
+   ok('title', s&&s.title==='Test', s); ok('sections', s&&JSON.stringify(s.sections)===JSON.stringify([{l:'Verse',c:['G │ D │ Am │  /x2/']}]), s&&s.sections);
+   ok('listed in editor', d.querySelectorAll('.it').length===1); }],
+ ['T3 rename keeps saved state', async()=>{ const d=await open('#mybar-1',{'ag-gigs':BAR,'ag-song:mybar:Tune A':{t:2,c:0,note:'hi'}});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100);
+   ok('chart prefilled', d.getElementById('fChart').value==='Verse\nA | D', d.getElementById('fChart').value);
+   d.getElementById('fTitle').value='Tune A 2'; d.getElementById('fSave').click(); await sleep(100);
+   ok('state moved', JSON.parse(localStorage.getItem('ag-song:mybar:Tune A 2')||'{}').note==='hi'); ok('old key gone', localStorage.getItem('ag-song:mybar:Tune A')===null); }],
+ ['T3 reorder and delete', async()=>{ const two=[{id:'u1',name:'Mine',sets:[{name:'',songs:[{title:'A',key:'C',capo:'',sections:[]},{title:'B',key:'C',capo:'',sections:[]}]}]}];
+   const d=await open('#edit-u1',{'ag-gigs':two}); frame.contentWindow.confirm=()=>true;
+   d.querySelector('.it [data-mv="1"]').click(); await sleep(100);
+   let t=JSON.parse(localStorage.getItem('ag-gigs'))[0].sets[0].songs.map(x=>x.title); ok('moved down', t.join()==='B,A', t);
+   d.querySelector('.it [data-del]').click(); await sleep(100);
+   t=JSON.parse(localStorage.getItem('ag-gigs'))[0].sets[0].songs.map(x=>x.title); ok('deleted', t.join()==='A', t);
+   d.getElementById('addSet').click(); d.getElementById('addBreak').click(); await sleep(100);
+   const sets=JSON.parse(localStorage.getItem('ag-gigs'))[0].sets; ok('set added', sets.length===2, sets); ok('break added', sets[1]&&sets[1].songs[0]&&sets[1].songs[0].break!==undefined, sets); }],
+ ['T3 example song has no edit', async()=>{ const d=await open('#example-1');
+   ok('no edit button', !d.querySelector('[data-act="edit"]')); }],
+ ['T3 save failure keeps sheet open', async()=>{ const d=await open('#edit-u1',{'ag-gigs':[{id:'u1',name:'Mine',sets:[{name:'',songs:[]}]}]});
+   d.getElementById('addSong').click(); await sleep(100);
+   frame.contentWindow.Storage.prototype.setItem=function(){throw new Error('full')};
+   d.getElementById('fTitle').value='X'; d.getElementById('fSave').click(); await sleep(100);
+   ok('sheet still open', !!d.getElementById('fTitle')); ok('toast', /save/i.test(d.getElementById('toast').textContent), d.getElementById('toast').textContent); }],
+ ['T4 save gig to file', async()=>{ const d=await open('#edit-u1',{'ag-gigs':[{id:'u1',name:'Mine',sets:[{name:'',songs:[{title:'A',key:'C',capo:'',sections:[]}]}]}]});
+   let got=null; frame.contentWindow.downloadJSON=(name,obj)=>{got={name,obj}};
+   d.getElementById('saveGigFile').click(); await sleep(100);
+   ok('file name', got&&got.name==='Mine.setlist.json', got&&got.name);
+   ok('valid file', got&&frame.contentWindow.validateGigFile(got.obj).ok&&got.obj.gigs.length===1&&got.obj.gigs[0].sets[0].songs[0].title==='A', got&&got.obj);
+   ok('no app-only fields', got&&got.obj.gigs[0].songs===undefined&&got.obj.gigs[0].sets[0].songs[0].list===undefined); }],
+ ['T4 load new gig', async()=>{ const d=await open('');
+   frame.contentWindow.importText(JSON.stringify({kind:'setlists-gigs',v:1,gigs:[{id:'mybar',name:'Friday Bar',sets:[{name:'Set 1',songs:[{title:'Tune A',key:'A',capo:'',sections:[]}]}]}]})); await sleep(150);
+   ok('saved', JSON.parse(localStorage.getItem('ag-gigs')||'[]').length===1); ok('toast', /Loaded 1 gig/.test(d.getElementById('toast').textContent), d.getElementById('toast').textContent);
+   ok('shows the gig', d.getElementById('title').textContent==='Friday Bar', d.getElementById('title').textContent); }],
+ ['T4 conflict cancel/replace/keep', async()=>{ const file=JSON.stringify({kind:'setlists-gigs',v:1,gigs:[Object.assign({},BAR[0],{name:'Friday NEW'})]});
+   let d=await open('#mybar',{'ag-gigs':BAR}); const W=()=>frame.contentWindow, G=()=>JSON.parse(localStorage.getItem('ag-gigs'));
+   W().importText(file); await sleep(100); ok('prompt', !!d.getElementById('impReplace'));
+   d.getElementById('impCancel').click(); await sleep(100); ok('cancel unchanged', G().length===1&&G()[0].name==='Friday Bar', G());
+   W().importText(file); await sleep(100); d.getElementById('impReplace').click(); await sleep(100); ok('replaced', G().length===1&&G()[0].name==='Friday NEW', G());
+   W().importText(file); await sleep(100); d.getElementById('impKeep').click(); await sleep(100); ok('kept both', G().length===2&&G()[1].id==='mybar2', G()); }],
+ ['T4 bad file', async()=>{ const d=await open('');
+   frame.contentWindow.importText('{"kind":"nope"}'); await sleep(100); ok('bad toast', /isn.t a setlist file/.test(d.getElementById('toast').textContent), d.getElementById('toast').textContent);
+   frame.contentWindow.importText('not json'); await sleep(100); ok('nothing saved', localStorage.getItem('ag-gigs')===null); }],
+ ['T5 welcome on first run, then empty card', async()=>{ let d=await open('');
+   ok('welcome shown', !!d.getElementById('welcome')); ok('no duplicate empty card', !d.getElementById('emptyCard'));
+   d.getElementById('wGot').click(); await sleep(100);
+   ok('welcome gone', !d.getElementById('welcome')); ok('remembered', localStorage.getItem('ag-seenWelcome')==='true'); ok('empty card now', !!d.getElementById('emptyCard')); }],
+ ['T5 help sheet', async()=>{ const d=await open('');
+   d.getElementById('wHelp').click(); await sleep(100);
+   const txt=d.getElementById('sheetHost').textContent; ok('help has home screen', /Home Screen/.test(txt)); ok('help has syntax', /x2/.test(txt)); }],
+ ['T5 Bulgarian', async()=>{ const d=await open('',{'ag-prefs':{lang:'bg'},'ag-seenWelcome':true});
+   ok('card in bg', d.querySelector('#emptyCard h2').textContent==='Направи го свое', d.querySelector('#emptyCard h2').textContent);
+   ok('search placeholder bg', /Търси/.test(d.getElementById('find').placeholder));
+   ok('static bg', /Предишна/.test(d.getElementById('prevBtn').textContent));
+   ok('html lang', d.documentElement.lang==='bg'); ok('example name bg', /Примерно участие/.test(d.querySelector('.sw[data-gig="example"]').textContent)); }],
+ ['T5 switch language in settings', async()=>{ const d=await open('',{'ag-seenWelcome':true});
+   d.getElementById('optBtn').click(); await sleep(100);
+   d.querySelector('#optLang [data-v="bg"]').click(); await sleep(100);
+   ok('saved', JSON.parse(localStorage.getItem('ag-prefs')).lang==='bg');
+   ok('sheet re-rendered bg', /Език/.test(d.getElementById('sheetHost').textContent));
+   d.getElementById('sheetClose').click(); await sleep(100);
+   ok('list in bg', d.querySelector('#emptyCard h2').textContent==='Направи го свое'); }],
+ ['T5 settings: save all, load, hide example', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   let got=null; frame.contentWindow.downloadJSON=(name,obj)=>{got={name,obj}};
+   d.getElementById('optBtn').click(); await sleep(100);
+   d.getElementById('oSaveAll').click(); ok('save all', got&&got.name==='my-gigs.setlist.json'&&got.obj.gigs.length===1, got&&got.name);
+   ok('load row', !!d.getElementById('oLoad'));
+   d.querySelector('#optEx [data-v="hide"]').click(); await sleep(100);
+   ok('example hidden', !d.querySelector('.sw[data-gig="example"]')); }],
+ ['T5 example tip translated', async()=>{ const d=await open('#example-1',{'ag-prefs':{lang:'bg'}});
+   const tip=d.querySelector('.tip'); ok('tip shown', !!tip); }],
+ ['T6 example gig content', async()=>{ const d=await open('#example',{'ag-seenWelcome':true});
+   const rows=[...d.querySelectorAll('.row .t')].map(x=>x.firstChild.textContent);
+   ok('two songs', rows.join('|')==="Knockin' on Heaven's Door|Let It Be", rows);
+   ok('break', /Break 15 min/.test(d.querySelector('.brk')&&d.querySelector('.brk').textContent));
+   ok('two sets', d.querySelectorAll('.set h2').length===2); }],
+ ['T6 example songs demo features', async()=>{ let d=await open('#example-1',{'ag-seenWelcome':true});
+   ok('tip en', /Tap a chord/.test(d.querySelector('.tip').textContent)); ok('bpm', /69/.test(d.querySelector('[data-act="tempo"]').textContent));
+   ok('repeat chip', !!d.querySelector('.rep')); ok('loud note', !!d.querySelector('.note.loud'));
+   d=await open('#example-2',{'ag-seenWelcome':true,'ag-prefs':{lang:'bg'}});
+   ok('slash chord', [...d.querySelectorAll('.ch')].some(c=>/\//.test(c.textContent)));
+   ok('tip bg', /каподастер|капо/i.test(d.querySelector('.tip').textContent), d.querySelector('.tip').textContent); }],
+ ['T4 multi-gig file opens its first gig', async()=>{ const d=await open('',{'ag-seenWelcome':true});
+   frame.contentWindow.importText(JSON.stringify({kind:'setlists-gigs',v:1,gigs:[{id:'one',name:'One',sets:[]},{id:'two',name:'Two',sets:[]}]})); await sleep(200);
+   ok('first gig shown', frame.contentDocument.getElementById('title').textContent==='One', frame.contentDocument.getElementById('title').textContent); }],
+ ['FIX loaded file cannot run script', async()=>{ const d=await open('',{'ag-seenWelcome':true});
+   frame.contentWindow.importText(JSON.stringify({kind:'setlists-gigs',v:1,gigs:[{id:'evil',name:'Evil',sets:[{name:'',songs:[{title:'X',key:'G',capo:'',bpm:'<img src=x onerror="parent.XSS=1">',sections:[],web:true,sources:['javascript:parent.XSS2=1']}]}]}]})); await sleep(200);
+   frame.contentWindow.location.hash='evil-1'; await sleep(300);
+   ok('no script ran', window.XSS===undefined); ok('no js link', ![...frame.contentDocument.querySelectorAll('.srcs a')].some(a=>/^javascript:/i.test(a.getAttribute('href')))); }],
+ ['FIX rename gig then edit song keeps the edit', async()=>{ const d=await open('#edit-mybar',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   const nm=d.getElementById('gigName'); nm.value='Renamed'; nm.dispatchEvent(new Event('change')); await sleep(150);
+   frame.contentDocument.querySelector('[data-edit]').click(); await sleep(100);
+   const dd=frame.contentDocument; dd.getElementById('fChart').value='Verse\nE | B'; dd.getElementById('fSave').click(); await sleep(150);
+   const g=JSON.parse(localStorage.getItem('ag-gigs'))[0]; ok('name kept', g.name==='Renamed', g.name);
+   ok('chart saved', JSON.stringify(g.sets[0].songs[0].sections)===JSON.stringify([{l:'Verse',c:['E │ B']}]), g.sets[0].songs[0].sections); }],
+ ['FIX broken stored gig does not blank the app', async()=>{ const d=await open('#mybar',{'ag-gigs':[{id:'mybar',name:'Bar',sets:[{name:'S'},{name:'T',songs:[{title:'NoKey'}]}]}],'ag-seenWelcome':true});
+   ok('list rendered', d.querySelectorAll('.row').length===1, d.querySelectorAll('.row').length); }],
+ ['FIX failed note save warns', async()=>{ const d=await open('#mybar-1',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   frame.contentWindow.Storage.prototype.setItem=function(){throw new Error('full')};
+   const t=d.getElementById('mynote'); t.value='x'; t.dispatchEvent(new Event('input')); await sleep(50);
+   ok('toast', /save/i.test(d.getElementById('toast').textContent), d.getElementById('toast').textContent); }],
+ ['FIX rename onto existing title keeps that song state', async()=>{ const two=[{id:'mybar',name:'Bar',sets:[{name:'',songs:[{title:'Tune A',key:'A',capo:'',sections:[]},{title:'Tune B',key:'C',capo:'',sections:[]}]}]}];
+   const d=await open('#mybar-1',{'ag-gigs':two,'ag-song:mybar:Tune A':{t:1,note:'A note'},'ag-song:mybar:Tune B':{t:5,note:'B note'},'ag-seenWelcome':true});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100); d.getElementById('fTitle').value='Tune B'; d.getElementById('fSave').click(); await sleep(150);
+   ok('B state kept', JSON.parse(localStorage.getItem('ag-song:mybar:Tune B')).note==='B note'); }],
+ ['FIX Chords button translated', async()=>{ const d=await open('#example-1',{'ag-seenWelcome':true,'ag-prefs':{lang:'bg'}});
+   ok('bg', d.querySelector('[data-act="chords"]').textContent==='Акорди', d.querySelector('[data-act="chords"]').textContent); }],
+
+]);
+</script>

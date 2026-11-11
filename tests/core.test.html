@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8"><body>
+<script src="../src/core.js"></script>
+<script>
+let n=0; const fails=[];
+function eq(name,a,b){ try{ const A=typeof a==='function'?a():a; if(JSON.stringify(A)===JSON.stringify(b)) n++; else fails.push('FAIL: '+name+' got '+JSON.stringify(A)); }catch(e){ fails.push('FAIL: '+name+' threw '+e.message); } }
+function T(){
+eq('parse basic', ()=>parseChart('Verse\nG | Cadd9 | Am7 | C   x2\nChorus\nG | D/F#'),
+   [{l:'Verse',c:['G │ Cadd9 │ Am7 │ C │  /x2/']},{l:'Chorus',c:['G │ D/F#']}]);
+eq('label brackets/colon', ()=>parseChart('[Intro]\nG D\nOutro:\nC').map(s=>s.l), ['Intro','Outro']);
+eq('continuation after blank', ()=>parseChart('Verse\nG | C\n\nAm | F').length, 2);
+eq('no label first', ()=>parseChart('G | C')[0].l, '');
+const owner=[{l:'Interlude',c:['│ G │ Cadd9 │ Am7 │ D │ G-D/F# │  kick-kick']},{l:'',c:['│ Em │ Am7 │ D7 │  /x2/']},{l:'Outro',c:['│ G │  /LAST TIME SLOW/']}];
+eq('round trip tokens', ()=>parseChart(serializeChart(owner)).map(s=>[s.l,s.c.map(l=>tokens(l))]), owner.map(s=>[s.l,s.c.map(l=>tokens(l))]));
+eq('slash chord before repeat', ()=>tokens(parseChart('Am Am/G  x2')[0].c[0]), [{k:'ch',v:'Am Am/G'},{k:'rep',v:'×2'}]);
+eq('slash chord before repeat round trip', ()=>{const s=[{l:'Chorus',c:['│ F │ C C/B │ Am Am/G │  /x2/']}]; return parseChart(serializeChart(s)).map(x=>x.c.map(tokens))}, [[[{k:'ch',v:'F'},{k:'ch',v:'C C/B'},{k:'ch',v:'Am Am/G'},{k:'rep',v:'×2'}]]]);
+eq('serialize readable', ()=>serializeChart([{l:'Verse',c:['│ G │ C │  /x2/']}]), 'Verse\nG | C  x2');
+eq('conflicts', ()=>importConflicts([{id:'mybar'}],[{id:'mybar'},{id:'u1'}]), ['mybar']);
+eq('replace', ()=>applyImport([{id:'a',name:'A'},{id:'b',name:'B'}],[{id:'a',name:'A2'}],'replace').map(g=>g.name), ['A2','B']);
+eq('keep both', ()=>applyImport([{id:'a',name:'A'}],[{id:'a',name:'A'}],'keep').map(g=>g.id+'/'+g.name), ['a/A','a2/A (2)']);
+eq('validate bad', ()=>validateGigFile({kind:'lyrics-pack'}).ok, false);
+eq('validate good', ()=>validateGigFile(makeGigFile([{id:'a',name:'A',sets:[]}],'2026-11-11')).ok, true);
+eq('newId', ()=>/^[a-z0-9]+$/.test(newId(1731300000000)), true);
+eq('flatten round trip', ()=>unflattenGig(flattenGig({sets:[{name:'Set 1',songs:[{title:'X'},{break:'Break'}]},{name:'Set 2',songs:[{title:'Y'}]}]})),
+   [{name:'Set 1',songs:[{title:'X'},{break:'Break'}]},{name:'Set 2',songs:[{title:'Y'}]}]);
+
+eq('bpm coerced to number', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'G',bpm:'<img src=x onerror=alert(1)>',sections:[]}]}]}]}).gigs[0].sets[0].songs[0].bpm, null);
+eq('bpm numeric kept', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'G',bpm:'96',sections:[]}]}]}]}).gigs[0].sets[0].songs[0].bpm, 96);
+eq('only http sources', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'G',sections:[],sources:['javascript:alert(1)','https://ok.example/x']}]}]}]}).gigs[0].sets[0].songs[0].sources, ['https://ok.example/x']);
+eq('set without songs gets []', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'S'}]}]}).gigs[0].sets[0].songs, []);
+eq('song defaults', ()=>{const x=validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X'}]}]}]}).gigs[0].sets[0].songs[0]; return [x.key,x.capo,x.sections];}, ['C','',[]]);
+eq('bad items dropped', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[null,7,{title:''},{break:'B'},{title:'Y',key:'D',sections:[{l:'V',c:['│ D │',5]}]}]}]}]}).gigs[0].sets[0].songs, [{break:'B'},{title:'Y',key:'D',capo:'',sections:[{l:'V',c:['│ D │']}]}]);
+eq('sanitizeGigs on stored data', ()=>sanitizeGigs([{id:'a',name:'A',sets:[{name:'S'}]},{id:'BAD id',name:'x',sets:[]}]).map(g=>g.id+':'+g.sets[0].songs.length), ['a:0']);
+}
+try{T()}catch(e){fails.push('ERROR: '+e.message)}
+document.body.textContent=fails.length?fails.join('\n'):'PASS '+n;
+</script>
