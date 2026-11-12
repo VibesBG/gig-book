@@ -99,6 +99,30 @@
         ]
        }
       ]
+     },
+     {
+      "title": "Amazing Grace",
+      "artist": "John Newton, 1779",
+      "key": "G",
+      "capo": "",
+      "bpm": 80,
+      "beats": 3,
+      "tip": {
+       "en": "This song has chords and lyrics. Switch between them with Chords | Lyrics at the top. Singers can set Aa › Open songs in › Lyrics.",
+       "bg": "Тази песен има акорди и текст. Сменяй ги с Акорди | Текст горе. Певците могат да изберат Aa › Отваряй песните в › Текст."
+      },
+      "sections": [
+       {
+        "l": "Verse",
+        "c": [
+         "│ G │ G7 │ C │ G │",
+         "│ G │ Em │ A7 │ D │",
+         "│ G │ G7 │ C │ G │",
+         "│ G │ D │ G │ G │"
+        ]
+       }
+      ],
+      "lyrics": "Verse 1\nAmazing grace! How sweet the sound\nThat saved a wretch like me!\nI once was lost, but now am found;\nWas blind, but now I see.\n\nVerse 2\n'Twas grace that taught my heart to fear,\nAnd grace my fears relieved;\nHow precious did that grace appear\nThe hour I first believed.\n\nVerse 3\nThrough many dangers, toils and snares,\nI have already come;\n'Tis grace hath brought me safe thus far,\nAnd grace will lead me home."
      }
     ]
    }

@@ -62,7 +62,8 @@ function sanitizeSong(x){
   if(typeof x.break==='string') return {break:x.break};
   const title=str(x.title).trim(); if(!title) return null;
   const capo=str(x.capo).trim();
-  const y={title,key:str(x.key).trim()||'C',capo:/^[0-9]$/.test(capo)&&capo!=='0'?capo:'',
+  const hasChords=Array.isArray(x.sections)&&x.sections.length>0;
+  const y={title,key:str(x.key).trim()||(hasChords?'C':''),capo:/^[0-9]$/.test(capo)&&capo!=='0'?capo:'',
     sections:(Array.isArray(x.sections)?x.sections:[]).filter(s=>s&&typeof s==='object').map(s=>({l:str(s.l),c:(Array.isArray(s.c)?s.c:[]).filter(l=>typeof l==='string')}))};
   if(str(x.artist)) y.artist=str(x.artist);
   if('bpm' in x){ const b=parseInt(x.bpm,10); y.bpm=(String(b)===str(x.bpm).trim()&&b>=30&&b<=300)?b:null; }
@@ -71,6 +72,7 @@ function sanitizeSong(x){
   if(Array.isArray(x.sources)) y.sources=x.sources.filter(u=>typeof u==='string'&&/^https?:\/\//i.test(u));
   if(str(x.webNote)) y.webNote=str(x.webNote);
   if(x.tip&&typeof x.tip==='object') y.tip={en:str(x.tip.en),bg:str(x.tip.bg)};
+  if(typeof x.lyrics==='string'&&x.lyrics.trim()) y.lyrics=x.lyrics.replace(/\r/g,'').slice(0,30000);
   return y;
 }
 function sanitizeGig(g){
@@ -176,4 +178,65 @@ function pickSongs(gig,keep){
   return {id:gig.id,name:gig.name,sets:gig.sets.map(s=>({name:s.name,songs:s.songs.filter(x=>(x.title===undefined&&x.t===undefined)?true:keep.has(i++))}))
     .map(s=>({name:s.name,songs:s.songs.filter((x,k,a)=>!(x.break!==undefined&&(k===0||k===a.length-1||a[k-1].break!==undefined)))}))
     .filter(s=>s.songs.some(x=>x.title!==undefined||x.t!==undefined))};
+}
+
+/* ---------- lyrics ---------- */
+// Titles match across chords and lyrics whatever the case, spacing or punctuation.
+const norm=t=>String(t).toLowerCase().replace(/[’`]/g,"'").replace(/[^\p{L}\p{N}]/gu,'');
+const stKey=s=>s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+const LABEL_WORDS='chorus|verse|bridge|pre-?chorus|intro|outro|refrain|hook|interlude|coda|tag|solo|припев|куплет|бридж|мост|интро|финал|рефрен|соло';
+// a label may carry a repeat: "Chorus x2", "Припев (2х)", "Chorus ×2"
+const LABEL=new RegExp('^\\[?\\s*(('+LABEL_WORDS+')(\\s*\\d+)?(\\s*\\(?\\s*(?:[xх×]\\s*\\d+|\\d+\\s*[xх×])\\s*\\)?)?)\\s*\\]?\\s*:?$','i');
+const CHORUSY=/^(chorus|refrain|hook|припев|рефрен)/i;
+function labelOf(line){
+  const l=line.trim(); let m=l.match(LABEL); if(m) return m[1].replace(/\s+/g,' ');
+  m=l.match(/^\[\s*([^\]]{1,30}?)\s*\]$/); return m?m[1]:null;
+}
+// Lyrics text -> stanzas; the chorus (marked, or repeated word for word) is shaded.
+function parseLyrics(text){
+  const stanzas=String(text||'').replace(/\r/g,'').split(/\n\s*\n/).map(s=>s.replace(/^\n+|\s+$/g,'')).filter(Boolean).map(s=>{
+    const lines=s.split('\n'); const label=labelOf(lines[0]);
+    return {label,lines:label?lines.slice(1):lines};
+  });
+  const count={}; stanzas.forEach(s=>{ if(s.lines.length){ const k=stKey(s.lines.join('\n')); count[k]=(count[k]||0)+1; } });
+  stanzas.forEach(s=>{ s.rep=!!(s.label&&CHORUSY.test(s.label))||(s.lines.length>0&&count[stKey(s.lines.join('\n'))]>1); });
+  return stanzas;
+}
+// Search: ignore case, accents (й→и, ѝ→и, é→e), apostrophes (don’t = dont) and extra spaces.
+// Returns the folded text and, for each folded character, where it came from in the original.
+function foldMap(s){ let f='', map=[]; s=String(s);
+  for(let i=0;i<s.length;i++){ const c=s[i]; if(/['’‘`´]/.test(c)) continue;
+    const d=c.normalize('NFD').replace(/\p{M}/gu,'').toLowerCase(); if(/\s/.test(d)&&/\s$/.test(f)) continue;
+    for(const ch of d){ f+=/\s/.test(ch)?' ':ch; map.push(i); } }
+  return {f,map}; }
+const fold=s=>foldMap(s).f.trim();
+
+// Files from the old Gig Lyrics app: {kind:'lyrics-pack', gigs:[{id,name,sets:[{name,songs:[{t,a,x}]}]}], texts:{x:text}}
+function sanitizeLyricsPack(o){
+  if(!o||o.kind!=='lyrics-pack'||!Array.isArray(o.gigs)) return null;
+  const texts=Object.create(null); Object.entries(o.texts&&typeof o.texts==='object'?o.texts:{}).forEach(([k,v])=>{ if(typeof v==='string') texts[k]=v; });
+  const gigs=o.gigs.filter(g=>g&&typeof g.id==='string'&&/^[a-z0-9]+$/.test(g.id)&&typeof g.name==='string'&&Array.isArray(g.sets))
+    .map(g=>({id:g.id,name:g.name,sets:g.sets.filter(s=>s&&typeof s==='object').map(s=>({name:str(s.name),songs:(Array.isArray(s.songs)?s.songs:[])
+      .filter(x=>x&&typeof x==='object'&&str(x.t).trim()).map(x=>({t:str(x.t).trim(),a:str(x.a),x:str(x.x)}))}))}));
+  return {gigs,texts};
+}
+// Put lyrics into chord gigs. Songs get their lyrics by title (from any lyrics gig); lyrics gigs
+// that aren't here yet come in as new gigs; songs a lyrics gig has that its chord gig lacks are added.
+// editOf(title) may return your own fixed lyrics for a title, which win.
+function mergeLyricsPack(gigs,pack,editOf){
+  const out=clone(gigs), own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+  const textOf=x=>{ const e=editOf&&editOf(x.t); if(typeof e==='string'&&e.trim()) return e; return x.x&&own(pack.texts,x.x)?pack.texts[x.x]:''; };
+  const byTitle=Object.create(null);
+  pack.gigs.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ const k=norm(x.t), t=textOf(x); if(t&&!(k in byTitle)) byTitle[k]=t; })));
+  const lyr=t=>byTitle[norm(t)]||'';
+  out.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title&&!x.lyrics&&lyr(x.title)) x.lyrics=lyr(x.title); })));
+  const toSong=x=>{ const y={title:x.t,key:'',capo:'',sections:[]}; if(x.a) y.artist=x.a; const t=textOf(x)||lyr(x.t); if(t) y.lyrics=t; return y; };
+  pack.gigs.forEach(lg=>{
+    const g=out.find(e=>e.id===lg.id);
+    if(!g){ out.push({id:lg.id,name:lg.name,sets:lg.sets.map(s=>({name:s.name,songs:s.songs.map(toSong)}))}); return; }
+    const have=new Set(); g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title) have.add(norm(x.title)); }));
+    const extra=[]; lg.sets.forEach(s=>s.songs.forEach(x=>{ const k=norm(x.t); if(!have.has(k)){ have.add(k); extra.push(toSong(x)); } }));
+    if(extra.length){ if(!g.sets.length) g.sets.push({name:'',songs:[]}); g.sets[g.sets.length-1].songs.push(...extra); }
+  });
+  return out;
 }
