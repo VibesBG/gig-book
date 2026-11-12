@@ -156,9 +156,13 @@ run([
    const g=[{id:'mybar',name:'Bar',sets:[{name:'',songs:[{title:'Fast',key:'G',capo:'',bpm:200,sections:[{l:'A',c:['│ G │','│ C │','│ D │ D │ D │ D │']}]}]}]}];
    const d=await open('#mybar-1',{'ag-gigs':g,'ag-seenWelcome':true});
    const now=()=>[...d.querySelectorAll('.ln')].findIndex(l=>l.classList.contains('now'));
-   d.getElementById('faster').click(); await sleep(50);
+   d.getElementById('tempoBtn').click(); await sleep(80); d.querySelector('[data-d="1"]').click(); await sleep(50);
    ok('nudged up', /201/.test(d.getElementById('scrollSpd').textContent), d.getElementById('scrollSpd').textContent);
    ok('nudge saved', JSON.parse(localStorage.getItem('ag-song:mybar:Fast')).bpm===201);
+   const inp=d.getElementById('mBpm'); inp.value='96'; inp.dispatchEvent(new Event('input')); await sleep(30);
+   ok('typed tempo saved', JSON.parse(localStorage.getItem('ag-song:mybar:Fast')).bpm===96&&/96/.test(d.getElementById('scrollSpd').textContent));
+   inp.value='201'; inp.dispatchEvent(new Event('change')); d.getElementById('sheetClose').click(); await sleep(50);
+   ok('no − + in the dock', !d.getElementById('slower')&&!d.getElementById('faster'));
    d.querySelectorAll('.ln')[2].click(); await sleep(50);
    d.getElementById('scrollBtn').click(); await sleep(1400);
    ok('starts on tapped line', now()===2, now());

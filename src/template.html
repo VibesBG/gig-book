@@ -177,7 +177,10 @@ button,input,textarea{font:inherit;color:inherit}
 .nav:disabled{opacity:.35;cursor:default}
 .scroller{display:flex;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
 .scroller button{height:60px;border:0;background:transparent;cursor:pointer}
-.scroller .sm{width:34px;font-size:18px;color:var(--muted)}
+.scroller .tempo{min-width:62px;padding:0 10px 0 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--fg);border-left:1px solid var(--line)}
+.scroller .tempo small{font-size:10px;color:var(--muted);letter-spacing:.08em}
+.scroller .tempo b{font-size:17px;font-family:var(--f-chord)}
+input.bigbpm{display:block;width:100%;max-width:220px;margin:6px auto 2px;background:var(--chip);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:4px 0}
 .scroller .play{min-width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:20px;line-height:1}
 .scroller .play small{font-size:10px;color:var(--muted);letter-spacing:.08em;margin-top:3px}
 .scroller.on{border-color:var(--accent)}
@@ -231,9 +234,8 @@ button,input,textarea{font:inherit;color:inherit}
   <div class="dock-in">
     <button class="nav" id="prevBtn"><small>‹ Previous</small><b id="prevT"></b></button>
     <div class="scroller" id="scroller">
-      <button class="sm" id="slower" aria-label="Scroll slower">−</button>
-      <button class="play" id="scrollBtn" aria-label="Auto-scroll"><span id="scrollIcon">▶</span><small id="scrollSpd">SPD 4</small></button>
-      <button class="sm" id="faster" aria-label="Scroll faster">+</button>
+      <button class="play" id="scrollBtn" aria-label="Auto-scroll"><span id="scrollIcon">▶</span></button>
+      <button class="tempo" id="tempoBtn" aria-label="Tempo"><small>BPM</small><b id="scrollSpd">♩ –</b></button>
     </div>
     <button class="nav next" id="nextBtn"><small>Next ›</small><b id="nextT"></b></button>
   </div>
@@ -330,13 +332,13 @@ function applyStatic(){
   document.documentElement.lang=prefs.lang;
   $('homeBtn').setAttribute('aria-label',tr('All songs')); $('optBtn').setAttribute('aria-label',tr('Settings'));
   $('prevBtn').querySelector('small').textContent=tr('‹ Previous'); $('nextBtn').querySelector('small').textContent=tr('Next ›');
-  $('slower').setAttribute('aria-label',tr('Tempo down')); $('scrollBtn').setAttribute('aria-label',tr('Auto-scroll')); $('faster').setAttribute('aria-label',tr('Tempo up'));
+  $('scrollBtn').setAttribute('aria-label',tr('Auto-scroll')); $('tempoBtn').setAttribute('aria-label',tr('Tempo'));
 }
 const HELP={en:[
  ['Make a gig','Tap “Make your own gig” (or ＋ New gig). Give it a name, then add songs. Use ＋ Set and ＋ Break to split it into sets, and ↑ ↓ to change the order.'],
  ['Type a song','Write the section name on its own line, then the chords, separated by |. Add x2 at the end of a line to repeat it.<pre>Verse\nG | D | Am | C  x2\nChorus\nC | G | D | D</pre>Leave an empty line to continue a section without a new name.'],
  ['Key, capo and chords','Key − / + transposes the whole song. Capo − / + keeps the sound and changes the shapes. Tap any chord to see how to play it.'],
- ['Tempo','Tap ♩ to set the tempo, tap along with “Tap tempo”, or start the metronome. “Count in 4” clicks four beats and keeps going. ▶ counts in too and clicks along with the song. Tap the dot at the top to stop the click.'],
+ ['Tempo','Tap ♩ or BPM at the bottom to type the tempo or change it with −/+, tap along with “Tap tempo”, or start the metronome. “Count in 4” clicks four beats and keeps going. ▶ counts in too and clicks along with the song. Tap the dot at the top to stop the click.'],
  ['On stage','▶ counts you in with four clicks, then follows the song line by line at its tempo: the line you play stays near the top. − / + nudge the tempo. Tap a line to start from it, or to jump there while playing. Songs in 3/4 or 6/8: set Beats in ✎ Edit. Swipe left or right for the next or previous song. A Bluetooth page-turner pedal works too (arrow keys or Page Up / Page Down). Turn on “Keep screen on” in Aa.'],
  ['Add to Home Screen','iPhone/iPad: open in Safari, tap Share, then “Add to Home Screen”. Android: Chrome menu ⋮, then “Add to Home screen”. After the first visit it works without internet.'],
  ['Send to a bandmate','Open a gig and tap ↗ Send. Pick the songs, tap Send file, then choose Viber, WhatsApp or Messenger and the person. They save the file and open it with Load a file; the app asks whether to add the gig. Your key, capo and tempo go with it; your notes stay yours. Send it again after a change and their copy is updated.'],
@@ -346,7 +348,7 @@ const HELP={en:[
  ['Направи участие','Натисни „Направи свое участие“ (или ＋ Ново участие). Дай му име и добави песни. С ＋ Сет и ＋ Почивка го делиш на сетове, а с ↑ ↓ сменяш реда.'],
  ['Въведи песен','Напиши името на частта на отделен ред, после акордите, разделени с |. Добави x2 в края на реда, за да се повтори.<pre>Куплет\nG | D | Am | C  x2\nПрипев\nC | G | D | D</pre>Празен ред продължава частта без ново име.'],
  ['Тон, капо и акорди','Тон − / + транспонира цялата песен. Капо − / + пази звученето и сменя позициите. Натисни акорд, за да видиш как се хваща.'],
- ['Темпо','Натисни ♩, за да зададеш темпо, почукай с „Почукай темпо“ или пусни метронома. „Отброй 4“ брои четири удара и продължава. ▶ също отброява и щрака заедно с песента. Натисни точката горе, за да спреш метронома.'],
+ ['Темпо','Натисни ♩ или BPM долу, за да напишеш темпото или да го смениш с −/+, почукай с „Почукай темпо“ или пусни метронома. „Отброй 4“ брои четири удара и продължава. ▶ също отброява и щрака заедно с песента. Натисни точката горе, за да спреш метронома.'],
  ['На сцената','▶ отброява четири удара и после следва песента ред по ред в нейното темпо: редът, който свириш, стои горе. − / + леко сменят темпото. Натисни ред, за да започнеш от него или да скочиш там по време на свирене. Песни в 3/4 или 6/8: задай Удари в ✎ Редактирай. Плъзни наляво или надясно за следваща или предишна песен. Работи и Bluetooth педал за страници (стрелки или Page Up / Page Down). Включи „Екранът да не гасне“ в Aa.'],
  ['Добави на началния екран','iPhone/iPad: отвори в Safari, натисни Сподели, после „Добави към началния екран“. Android: менюто ⋮ в Chrome, после „Добави към началния екран“. След първото отваряне работи и без интернет.'],
  ['Изпрати на колега','Отвори участие и натисни ↗ Изпрати. Избери песните, натисни „Изпрати файла“ и избери Viber, WhatsApp или Messenger и човека. Той запазва файла и го отваря със „Зареди файл“; приложението пита дали да добави участието. Тонът, капото и темпото отиват с него, бележките остават твои. Прати го пак след промяна и копието му се обновява.'],
@@ -665,10 +667,8 @@ function playFrom(i){
 }
 function stopScroll(){ const was=scrolling; scrolling=false; clearTimeout(playTimer); if(was&&metro.on&&metro.byScroll) metroStop(); syncScrollUI(); }
 function syncScrollUI(){ const b=songBpm(); $('scroller').classList.toggle('on',scrolling); $('scrollIcon').textContent=scrolling?'❚❚':'▶'; $('scrollSpd').textContent='♩ '+(b||'–'); }
-function nudgeTempo(d){ if(cur<0) return; const b=songBpm(); if(!b){ openTempo(); return; } const v=saveS(SONGS[cur],{bpm:Math.min(240,Math.max(30,b+d))}); if(metro.on) metro.bpm=v.bpm; syncScrollUI(); }
 $('scrollBtn').onclick=()=>scrolling?stopScroll():startScroll();
-$('slower').onclick=()=>nudgeTempo(-1);
-$('faster').onclick=()=>nudgeTempo(1);
+$('tempoBtn').onclick=()=>{ if(cur>=0) openTempo(); };
 syncScrollUI();
 
 /* ---------- metronome ---------- */
@@ -702,11 +702,14 @@ function syncMetroUI(){ const b=$('mStart'); if(b){ b.textContent=metro.on&&metr
 function openTempo(){
   const s=SONGS[cur]; metro.bpm=bpmOf(s)||100;
   openSheet(tr('Tempo · {0}',s.title),`
-    <div class="bigbpm" id="mBpm">${metro.bpm}</div><p class="sub" style="justify-content:center">${bpmOf(s)?'BPM':tr('No tempo saved yet — tap or set one')}</p>
+    <input class="bigbpm" id="mBpm" type="number" inputmode="numeric" min="30" max="240" value="${metro.bpm}" aria-label="BPM"><p class="sub" style="justify-content:center">${bpmOf(s)?'BPM':tr('No tempo saved yet — tap or set one')}</p>
     <div class="bpmrow"><button class="tbtn" data-d="-5">−5</button><button class="tbtn" data-d="-1">−1</button><button class="tbtn" data-d="1">+1</button><button class="tbtn" data-d="5">+5</button></div>
     <div class="bpmrow"><button class="tbtn" id="mTap">${tr('Tap tempo')}</button><button class="tbtn" id="mCount">${tr('Count in 4')}</button><button class="tbtn primary" id="mStart">${tr('Start')}</button></div>
     <p class="sub" style="justify-content:center;margin-top:14px">${tr('Changes are saved for this song on this device.')}</p>`,()=>{
-    const setB=v=>{ metro.bpm=Math.min(240,Math.max(30,Math.round(v))); $('mBpm').textContent=metro.bpm; saveS(s,{bpm:metro.bpm}); };
+    const setB=(v,typing)=>{ metro.bpm=Math.min(240,Math.max(30,Math.round(v))); if(!typing) $('mBpm').value=metro.bpm; saveS(s,{bpm:metro.bpm}); syncScrollUI(); const tb=view.querySelector('[data-act="tempo"]'); if(tb) tb.innerHTML='♩ '+metro.bpm+' <small>BPM</small>'; };
+    $('mBpm').oninput=e=>{ const v=parseInt(e.target.value,10); if(v>=30&&v<=240) setB(v,true); };
+    $('mBpm').onchange=e=>{ const v=parseInt(e.target.value,10); setB(v>=1?v:metro.bpm); };
+    $('mBpm').onkeydown=e=>{ if(e.key==='Enter') e.target.blur(); };
     $('sheetHost').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>setB(metro.bpm+(+b.dataset.d)));
     $('mTap').onclick=()=>{ const now=performance.now(); metro.taps=metro.taps.filter(t=>now-t<2500); metro.taps.push(now);
       if(metro.taps.length>=2){ const d=metro.taps.slice(-5); setB(60000/((d[d.length-1]-d[0])/(d.length-1))); } };
