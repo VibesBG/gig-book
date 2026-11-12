@@ -129,3 +129,32 @@ function songTimeline(sections,beatsPerBar){
   (sections||[]).forEach(s=>s.c.forEach(line=>{ const b=lineBeats(line,beatsPerBar); out.push({start:at,beats:b}); at+=b; }));
   return out;
 }
+
+/* ---------- share links ---------- */
+// A share link is <app address>#get=<code>. Everything after # stays on the phones: GitHub never sees it.
+// code = "z" + base64url(deflate(JSON)), or "j" + base64url(JSON) where the browser can't compress.
+function b64uEnc(bytes){ let s=''; for(let i=0;i<bytes.length;i+=0x8000) s+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64uDec(s){ const b=atob(String(s).replace(/-/g,'+').replace(/_/g,'/').replace(/\s+/g,'')); const out=new Uint8Array(b.length); for(let i=0;i<b.length;i++) out[i]=b.charCodeAt(i); return out; }
+const pipeBytes=(bytes,stream)=>new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer().then(b=>new Uint8Array(b));
+async function packShare(obj,noZip){
+  const raw=new TextEncoder().encode(JSON.stringify(obj));
+  if(!noZip&&typeof CompressionStream==='function'){ try{ return 'z'+b64uEnc(await pipeBytes(raw,new CompressionStream('deflate-raw'))); }catch(e){} }
+  return 'j'+b64uEnc(raw);
+}
+async function unpackShare(code){
+  code=String(code||''); const kind=code[0]; let bytes=b64uDec(code.slice(1));
+  if(kind==='z'){ if(typeof DecompressionStream!=='function') throw new Error('old browser'); bytes=await pipeBytes(bytes,new DecompressionStream('deflate-raw')); }
+  else if(kind!=='j') throw new Error('not a share code');
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+// The part of a link after #get= (the link may have been pasted with text around it).
+const shareCodeOf=text=>{ const m=String(text||'').match(/#get=([A-Za-z0-9_-]+)/); return m?m[1]:null; };
+const senderName=v=>typeof v==='string'?v.replace(/[\u0000-\u001f<>]/g,'').trim().slice(0,40):'';
+// Keep only the chosen songs (by position in the gig); sets left empty are dropped.
+function pickSongs(gig,keep){
+  let i=0;
+  return {id:gig.id,name:gig.name,sets:gig.sets.map(s=>({name:s.name,songs:s.songs.filter(x=>(x.title===undefined&&x.t===undefined)?true:keep.has(i++))}))
+    .map(s=>({name:s.name,songs:s.songs.filter((x,k,a)=>!(x.break!==undefined&&(k===0||k===a.length-1||a[k-1].break!==undefined)))}))
+    .filter(s=>s.songs.some(x=>x.title!==undefined||x.t!==undefined))};
+}

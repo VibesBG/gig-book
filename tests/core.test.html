@@ -42,6 +42,23 @@ eq('several groups', ()=>lineBeats('│ C │ G │ /x3/ │ G-F │ D │ /x2/ 
 eq('timeline', ()=>songTimeline([{l:'A',c:['│ G │ D │','│ C │  /x3/']},{l:'',c:['│ G │']}],4).map(x=>[x.start,x.beats]), [[0,8],[8,12],[20,4]]);
 eq('timeline default 4/4', ()=>songTimeline([{l:'A',c:['│ G │']}]).map(x=>x.beats), [4]);
 }
+async function A(){
+const big={kind:'setlists-gigs',v:1,from:'Дарин',gigs:[{id:'a',name:'Рейна',sets:[{name:'',songs:[{title:'Бесен',key:'Dm',sections:[{l:'Verse',c:['│ Dm │ Bb │ E │  /x2/'.repeat(40)]}]}]}]}]};
+const z=await packShare(big); eq('zip round trip', await unpackShare(z), big);
+eq('zip code is url-safe', /^z[A-Za-z0-9_-]+$/.test(z), true);
+eq('zip is much shorter', z.length<JSON.stringify(big).length/3, true);
+const j=await packShare(big,true); eq('plain round trip', await unpackShare(j), big); eq('plain starts with j', j[0], 'j');
+let bad=null; try{ await unpackShare('zNOTvalid'); }catch(e){ bad='threw'; } eq('broken code throws', bad, 'threw');
+let cut=null; try{ await unpackShare(z.slice(0,z.length/2)); }catch(e){ cut='threw'; } eq('cut-off link throws', cut, 'threw');
+eq('code from pasted message', shareCodeOf('Дарин sent you a gig: https://vibesbg.github.io/setlists/#get=zAb_-9 ok'), 'zAb_-9');
+eq('no code', shareCodeOf('#mybar-2'), null);
+eq('sender name cleaned', senderName(' Йонко<script>\n '), 'Йонкоscript');
+eq('sender name not a string', senderName({}), '');
+const gig={id:'g',name:'G',sets:[{name:'Set 1',songs:[{title:'A'},{break:'Break'},{title:'B'}]},{name:'Set 2',songs:[{title:'C'},{title:'D'}]}]};
+eq('pick some songs', pickSongs(gig,new Set([0,3])), {id:'g',name:'G',sets:[{name:'Set 1',songs:[{title:'A'}]},{name:'Set 2',songs:[{title:'D'}]}]});
+eq('pick drops empty sets', pickSongs(gig,new Set([2])).sets.map(s=>s.name), ['Set 2']);
+eq('pick all keeps everything', pickSongs(gig,new Set([0,1,2,3])), gig);
+}
 try{T()}catch(e){fails.push('ERROR: '+e.message)}
-document.body.textContent=fails.length?fails.join('\n'):'PASS '+n;
+A().catch(e=>fails.push('ERROR: '+e.message)).then(()=>{ document.body.textContent=fails.length?fails.join('\n'):'PASS '+n; });
 </script>

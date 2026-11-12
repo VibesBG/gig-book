@@ -106,6 +106,15 @@ button,input,textarea{font:inherit;color:inherit}
 .help pre{margin:8px 0;padding:10px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);color:var(--fg);font-family:var(--f-chord);font-size:14px;white-space:pre-wrap}
 .listacts .tbtn{height:44px}
 .linkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-weight:600}
+.pick{display:grid;gap:4px;max-height:38vh;overflow:auto;padding:2px}
+.pk{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer;color:var(--fg);font-weight:500}
+.pk input{width:22px;height:22px;min-height:0;flex:none;accent-color:var(--accent)}
+.pk span{min-width:0}
+.pk small{display:block;color:var(--muted);font-size:12px}
+.pickhead{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:14px;font-weight:600}
+.pickhead span{display:flex;gap:14px}
+.got{margin:0 0 12px;padding-left:20px;color:var(--fg)}
+.got li{margin:2px 0}
 
 .pills{display:flex;gap:6px;flex-wrap:wrap;flex:none}
 .pill{font-family:var(--f-chord);font-weight:600;font-size:13px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
@@ -369,6 +378,35 @@ function songTimeline(sections,beatsPerBar){
   return out;
 }
 
+/* ---------- share links ---------- */
+// A share link is <app address>#get=<code>. Everything after # stays on the phones: GitHub never sees it.
+// code = "z" + base64url(deflate(JSON)), or "j" + base64url(JSON) where the browser can't compress.
+function b64uEnc(bytes){ let s=''; for(let i=0;i<bytes.length;i+=0x8000) s+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64uDec(s){ const b=atob(String(s).replace(/-/g,'+').replace(/_/g,'/').replace(/\s+/g,'')); const out=new Uint8Array(b.length); for(let i=0;i<b.length;i++) out[i]=b.charCodeAt(i); return out; }
+const pipeBytes=(bytes,stream)=>new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer().then(b=>new Uint8Array(b));
+async function packShare(obj,noZip){
+  const raw=new TextEncoder().encode(JSON.stringify(obj));
+  if(!noZip&&typeof CompressionStream==='function'){ try{ return 'z'+b64uEnc(await pipeBytes(raw,new CompressionStream('deflate-raw'))); }catch(e){} }
+  return 'j'+b64uEnc(raw);
+}
+async function unpackShare(code){
+  code=String(code||''); const kind=code[0]; let bytes=b64uDec(code.slice(1));
+  if(kind==='z'){ if(typeof DecompressionStream!=='function') throw new Error('old browser'); bytes=await pipeBytes(bytes,new DecompressionStream('deflate-raw')); }
+  else if(kind!=='j') throw new Error('not a share code');
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+// The part of a link after #get= (the link may have been pasted with text around it).
+const shareCodeOf=text=>{ const m=String(text||'').match(/#get=([A-Za-z0-9_-]+)/); return m?m[1]:null; };
+const senderName=v=>typeof v==='string'?v.replace(/[\u0000-\u001f<>]/g,'').trim().slice(0,40):'';
+// Keep only the chosen songs (by position in the gig); sets left empty are dropped.
+function pickSongs(gig,keep){
+  let i=0;
+  return {id:gig.id,name:gig.name,sets:gig.sets.map(s=>({name:s.name,songs:s.songs.filter(x=>(x.title===undefined&&x.t===undefined)?true:keep.has(i++))}))
+    .map(s=>({name:s.name,songs:s.songs.filter((x,k,a)=>!(x.break!==undefined&&(k===0||k===a.length-1||a[k-1].break!==undefined)))}))
+    .filter(s=>s.songs.some(x=>x.title!==undefined||x.t!==undefined))};
+}
+
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem('ag-'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
              set(k,v){try{localStorage.setItem('ag-'+k,JSON.stringify(v));return true}catch(e){return false}},
@@ -436,7 +474,19 @@ const BG={
  'Replace':'Замени','Keep both':'Пази и двете','Couldn’t read that file':'Не можах да прочета файла',
  'Welcome':'Добре дошъл','This is an example gig. Open a song and try it: change the key, tap a chord, start the metronome, swipe to the next song. Then make your own gig.':'Това е примерно участие. Отвори песен и пробвай: смени тона, натисни акорд, пусни метронома, плъзни към следващата песен. После направи свое участие.',
  'Make my gig':'Направи моето участие','Got it':'Разбрах',
- 'Set a tempo first':'Първо задай темпо','No chords to follow':'Няма акорди за следване','Beats':'Удари','Tempo down':'Темпо надолу','Tempo up':'Темпо нагоре'
+ 'Set a tempo first':'Първо задай темпо','No chords to follow':'Няма акорди за следване','Beats':'Удари','Tempo down':'Темпо надолу','Tempo up':'Темпо нагоре',
+ '↗ Send':'↗ Изпрати','Send to a bandmate':'Изпрати на колега','Send “{0}”':'Изпрати „{0}“','Your name':'Твоето име','So they know who sent it':'За да знаят кой го праща',
+ 'Songs to send':'Песни за изпращане','All':'Всички','None':'Нито една','Send link':'Изпрати линк','Send as file':'Изпрати като файл','Pick at least one song':'Избери поне една песен',
+ 'Your key, capo and tempo changes go with the songs. Your notes stay private.':'Твоите промени на тон, капо и темпо отиват с песните. Бележките ти остават лични.',
+ 'This link is long ({0} characters). If it arrives cut off, use Send as file.':'Линкът е дълъг ({0} знака). Ако пристигне отрязан, използвай „Изпрати като файл“.',
+ 'Preparing the link…':'Подготвям линка…','Link copied. Paste it in Viber, WhatsApp or Messenger.':'Линкът е копиран. Постави го във Viber, WhatsApp или Messenger.',
+ 'Copy this message and send it:':'Копирай това съобщение и го изпрати:','A bandmate':'Колега',
+ '{0} sent you the gig “{1}” ({2}). Open the link to add it to Setlists:':'{0} ти изпрати участието „{1}“ ({2}). Отвори линка, за да го добавиш в Setlists:',
+ '{0} sent you a gig':'{0} ти изпрати участие','New gig':'Ново участие','Add it':'Добави го','Update it':'Обнови го','and {0} more':'и още {0}',
+ 'You already have this gig. Updating it keeps your notes and ✓ marks.':'Вече имаш това участие. Обновяването пази бележките и отметките ти.',
+ 'The key, capo and tempo of these songs will match the sender’s.':'Тонът, капото и темпото на тези песни ще са като на изпращача.',
+ 'Link not working':'Линкът не работи','This link is broken or was cut off. Ask for it again, or ask for the file.':'Линкът е повреден или отрязан. Поискай го отново или поискай файла.',
+ 'Update your browser to open this link, or ask for the file.':'Обнови браузъра си, за да отвориш този линк, или поискай файла.'
 };
 function tr(s,...a){ let r=(prefs.lang==='bg'&&BG[s])||s; a.forEach((v,i)=>{ r=r.split('{'+i+'}').join(v); }); return r; }
 const songsN=n=>n===1?tr('1 song'):tr('{0} songs',n);
@@ -453,6 +503,7 @@ const HELP={en:[
  ['Tempo','Tap ♩ to set the tempo, tap along with “Tap tempo”, or start the metronome. “Count in 4” clicks four beats and stops. Tap the dot at the top to stop the click.'],
  ['On stage','▶ counts you in with four clicks, then follows the song line by line at its tempo: the line you play stays near the top. − / + nudge the tempo. Tap a line to start from it, or to jump there while playing. Songs in 3/4 or 6/8: set Beats in ✎ Edit. Swipe left or right for the next or previous song. A Bluetooth page-turner pedal works too (arrow keys or Page Up / Page Down). Turn on “Keep screen on” in Aa.'],
  ['Add to Home Screen','iPhone/iPad: open in Safari, tap Share, then “Add to Home Screen”. Android: Chrome menu ⋮, then “Add to Home screen”. After the first visit it works without internet.'],
+ ['Send to a bandmate','Open a gig and tap ↗ Send. Pick the songs, then send the link in Viber, WhatsApp or Messenger. When they open it, the gig is added to their Setlists. Your key, capo and tempo go with it; your notes stay yours. Send it again after a change and their copy is updated.'],
  ['Back up and share','In a gig, tap “Save gig to file” to back it up or send it to a bandmate. “Load a file” puts it on another phone. Aa › My gigs › Save all makes one backup of everything.'],
  ['Your data','Your gigs, notes and changes are saved only on this device. Nothing is sent anywhere. Clearing the browser data deletes them, so keep a backup file.']
 ],bg:[
@@ -462,6 +513,7 @@ const HELP={en:[
  ['Темпо','Натисни ♩, за да зададеш темпо, почукай с „Почукай темпо“ или пусни метронома. „Отброй 4“ брои четири удара и спира. Натисни точката горе, за да спреш метронома.'],
  ['На сцената','▶ отброява четири удара и после следва песента ред по ред в нейното темпо: редът, който свириш, стои горе. − / + леко сменят темпото. Натисни ред, за да започнеш от него или да скочиш там по време на свирене. Песни в 3/4 или 6/8: задай Удари в ✎ Редактирай. Плъзни наляво или надясно за следваща или предишна песен. Работи и Bluetooth педал за страници (стрелки или Page Up / Page Down). Включи „Екранът да не гасне“ в Aa.'],
  ['Добави на началния екран','iPhone/iPad: отвори в Safari, натисни Сподели, после „Добави към началния екран“. Android: менюто ⋮ в Chrome, после „Добави към началния екран“. След първото отваряне работи и без интернет.'],
+ ['Изпрати на колега','Отвори участие и натисни ↗ Изпрати. Избери песните и прати линка във Viber, WhatsApp или Messenger. Когато го отвори, участието се добавя в неговия Setlists. Тонът, капото и темпото отиват с него, бележките остават твои. Прати го пак след промяна и копието му се обновява.'],
  ['Резервно копие и споделяне','В участие натисни „Запази във файл“, за да го пазиш или пратиш на колега. „Зареди файл“ го слага на друг телефон. Aa › Моите участия › Запази всички прави едно копие на всичко.'],
  ['Твоите данни','Участията, бележките и промените се пазят само на това устройство. Нищо не се изпраща никъде. Ако изчистиш данните на браузъра, те се трият, затова пази резервен файл.']
 ]};
@@ -577,7 +629,7 @@ function showList(){
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make my gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button><button class="tbtn" id="wHelp">${tr('Help')}</button><button class="tbtn" id="wGot">${tr('Got it')}</button></div></div>`
     :GIGS.length?'':`<div class="card" id="emptyCard"><h2>${tr('Make it yours')}</h2><p>${tr('This is an example gig. Make your own gig and type your songs in, or load a gig file someone sent you.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make your own gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div></div>`;
-  const acts=GIGS.length?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${LIST.ex?'':`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button>`}<button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div>`:'';
+  const acts=GIGS.length?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${LIST.ex?'':`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button><button class="tbtn" data-act="sendgig">${tr('↗ Send')}</button>`}<button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div>`:'';
   view.innerHTML='<div class="list">'+sw+empty+acts+find+'<div id="listBody"></div></div>';
   renderListBody();
   view.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{ if(b.dataset.gig!==LIST.id){ query=''; location.hash=b.dataset.gig; } });
@@ -645,7 +697,7 @@ function rerender(){ const y=window.scrollY; showSong(cur); window.scrollTo(0,y)
 
 view.addEventListener('click',e=>{
   if(cur<0){ const a=e.target.closest('[data-act]'); if(!a||editing) return;
-    if(a.dataset.act==='newgig') newGig(); else if(a.dataset.act==='editgig') location.hash='edit-'+LIST.id; else if(a.dataset.act==='loadfile'&&typeof pickFile==='function') pickFile();
+    if(a.dataset.act==='newgig') newGig(); else if(a.dataset.act==='sendgig') openSend(LIST.id); else if(a.dataset.act==='editgig') location.hash='edit-'+LIST.id; else if(a.dataset.act==='loadfile'&&typeof pickFile==='function') pickFile();
     return; }
   const s=SONGS[cur];
   const ch=e.target.closest('.ch');
@@ -847,7 +899,7 @@ function showGigEditor(id){
     <label class="fl">${tr('Gig name')}<input class="find" id="gigName" value="${esc(g.name)}" maxlength="40" autocomplete="off"></label>
     <div class="items">${items.map(row).join('')||`<p class="empty">${tr('No songs yet. Add your first song.')}</p>`}</div>
     <div class="acts"><button class="tbtn primary" id="addSong">${tr('＋ Song')}</button><button class="tbtn" id="addSet">${tr('＋ Set')}</button><button class="tbtn" id="addBreak">${tr('＋ Break')}</button></div>
-    <div class="acts" id="gigActs"><button class="tbtn" id="saveGigFile">${tr('Save gig to file')}</button><button class="tbtn" id="delGig">${tr('Delete gig')}</button><button class="tbtn primary" id="doneGig">${tr('Done')}</button></div></div>`;
+    <div class="acts" id="gigActs"><button class="tbtn" id="sendGig">${tr('↗ Send')}</button><button class="tbtn" id="saveGigFile">${tr('Save gig to file')}</button><button class="tbtn" id="delGig">${tr('Delete gig')}</button><button class="tbtn primary" id="doneGig">${tr('Done')}</button></div></div>`;
   const put=list=>{ if(commit(GIGS.map(x=>x.id===id?Object.assign({},x,{sets:unflattenGig(list)}):x))) showGigEditor(id); };
   $('gigName').onchange=e=>{ const v=e.target.value.trim()||tr('My gig'); if(commit(GIGS.map(x=>x.id===id?Object.assign({},x,{name:v}):x))){ showGigEditor(id); toast(tr('Saved')); } };
   view.querySelectorAll('.itset,.itbrk').forEach(inp=>inp.onchange=()=>{ const it=items[+inp.dataset.i]; if(it.k==='set') it.name=inp.value.trim(); else it.text=inp.value.trim()||tr('Break'); put(items); });
@@ -860,6 +912,7 @@ function showGigEditor(id){
   $('delGig').onclick=()=>{ if(!confirm(tr('Delete the gig “{0}” from this device?',g.name))) return; if(commit(GIGS.filter(x=>x.id!==id))){ store.set('list',LISTS[0].id); location.hash=''; toast(tr('Gig deleted')); } };
   $('doneGig').onclick=()=>{ location.hash=id; };
   $('saveGigFile').onclick=()=>saveFile([g]);
+  $('sendGig').onclick=()=>openSend(id);
 }
 function openSongEditor(gigId,song){
   const s=song||{title:'',artist:'',key:'',capo:'',sections:[]};
@@ -921,6 +974,7 @@ function finishImport(incoming,mode){
 function importText(text){
   let o=null; try{ o=JSON.parse(text); }catch(e){}
   const v=validateGigFile(o); if(!v.ok){ toast(tr('That isn’t a setlist file')); return; }
+  if(o.from!==undefined){ offerGigs(v.gigs,senderName(o.from),o.state); return; }   // a file someone sent with ↗ Send
   const clash=importConflicts(GIGS,v.gigs);
   if(!clash.length){ finishImport(v.gigs,'keep'); return; }
   const names=clash.map(id=>gigById(id).name);
@@ -934,9 +988,86 @@ function importText(text){
 $('gigFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
   const rd=new FileReader(); rd.onload=()=>importText(rd.result); rd.onerror=()=>toast(tr('Couldn’t read that file')); rd.readAsText(f); };
 
+/* ---------- send to a bandmate (link) ---------- */
+const LINK_LONG=6000, mobile=()=>/iPhone|iPad|Android/i.test(navigator.userAgent);
+const songTitles=g=>{ const a=[]; g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title!==undefined) a.push(x); })); return a; };
+// The sender's key, capo and tempo travel with the songs (the band plays them that way). Notes and ✓ marks don't.
+function sendState(g){
+  const out={};
+  songTitles(g).forEach(x=>{ const v=store.get('song:'+g.id+':'+x.title,null); if(!v) return; const o={};
+    if(+v.t) o.t=+v.t; if(v.c!==undefined&&+v.c!==(+x.capo||0)) o.c=+v.c; if(+v.bpm) o.bpm=+v.bpm;
+    if(Object.keys(o).length) out[x.title]=o; });
+  return out;
+}
+function applyState(gigs,state){
+  if(!state||typeof state!=='object') return;
+  gigs.forEach(g=>songTitles(g).forEach(x=>{ const v=state[x.title]; if(!v||typeof v!=='object') return;
+    const k='song:'+g.id+':'+x.title, cur=store.get(k,{}), t=parseInt(v.t,10), c=parseInt(v.c,10), b=parseInt(v.bpm,10);
+    cur.t=t>=-11&&t<=11?t:0; cur.c=c>=0&&c<=9?c:(+x.capo||0); if(b>=30&&b<=300) cur.bpm=b;
+    if(!store.set(k,cur)) warnSave(); }));
+}
+function openSend(gigId){
+  const g=gigById(gigId); if(!g) return;
+  const songs=songTitles(g); let ready=null, seq=0;
+  openSheet(tr('Send “{0}”',g.name),`<div class="form">
+    <label>${tr('Your name')}<input id="sName" value="${esc(prefs.name||'')}" maxlength="40" autocomplete="name" placeholder="${tr('So they know who sent it')}"></label>
+    <div class="pickhead">${tr('Songs to send')}<span><button class="linkbtn" id="sAll">${tr('All')}</button><button class="linkbtn" id="sNone">${tr('None')}</button></span></div>
+    <div class="pick">${songs.map((x,i)=>`<label class="pk"><input type="checkbox" data-i="${i}" checked><span><b>${esc(x.title)}</b>${x.artist?`<small>${esc(x.artist)}</small>`:''}</span></label>`).join('')}</div>
+    <p class="hint">${tr('Your key, capo and tempo changes go with the songs. Your notes stay private.')}</p>
+    <div class="acts"><button class="tbtn primary" id="sLink">${tr('Send link')}</button><button class="tbtn" id="sFile">${tr('Send as file')}</button></div>
+    <div id="sOut" class="hint"></div></div>`,()=>{
+    const boxes=[...$('sheetHost').querySelectorAll('.pk input')];
+    const keep=()=>new Set(boxes.filter(b=>b.checked).map(b=>+b.dataset.i));
+    const payload=()=>{ prefs.name=senderName($('sName').value); savePrefs();
+      const gig=pickSongs(plainGig(g),keep()), st=sendState(g), mine={}; songTitles(gig).forEach(x=>{ if(st[x.title]) mine[x.title]=st[x.title]; });
+      return Object.assign(makeGigFile([gig],today()),{from:prefs.name,state:mine}); };
+    // build the link ahead of the tap: phones only open the share menu straight from a tap
+    const prep=async()=>{ const my=++seq; ready=null; if(!keep().size){ $('sOut').textContent=''; return; }
+      $('sOut').textContent=tr('Preparing the link…');
+      const p=payload(), code=await packShare(p); if(my!==seq) return;
+      const n=songTitles(p.gigs[0]).length, url=location.origin+location.pathname+'#get='+code;
+      const text=tr('{0} sent you the gig “{1}” ({2}). Open the link to add it to Setlists:',p.from||tr('A bandmate'),g.name,songsN(n));
+      ready={url,text}; $('sOut').textContent=url.length>LINK_LONG?tr('This link is long ({0} characters). If it arrives cut off, use Send as file.',url.length):''; };
+    boxes.forEach(b=>b.onchange=prep); $('sName').onchange=prep;
+    $('sAll').onclick=()=>{ boxes.forEach(b=>b.checked=true); prep(); };
+    $('sNone').onclick=()=>{ boxes.forEach(b=>b.checked=false); prep(); };
+    $('sLink').onclick=()=>{
+      if(!keep().size){ toast(tr('Pick at least one song')); return; }
+      if(!ready){ toast(tr('Preparing the link…')); return; }
+      if(navigator.share&&mobile()){ navigator.share({title:g.name,text:ready.text,url:ready.url}).catch(()=>{}); return; }
+      const msg=ready.text+'\n'+ready.url;
+      $('sOut').innerHTML=`${tr('Copy this message and send it:')}<textarea class="find" id="sMsg" readonly style="width:100%;min-height:90px;padding:8px">${esc(msg)}</textarea>`;
+      $('sMsg').select();
+      try{ navigator.clipboard.writeText(msg).then(()=>toast(tr('Link copied. Paste it in Viber, WhatsApp or Messenger.')),()=>{}); }catch(e){}
+    };
+    $('sFile').onclick=()=>{ if(!keep().size){ toast(tr('Pick at least one song')); return; } downloadJSON(fileName(g.name),payload()); };
+    prep();
+  });
+}
+async function receiveLink(code){
+  history.replaceState(null,'',location.pathname+location.search);   // a refresh won't ask again
+  route();
+  let o=null, old=false; try{ o=await unpackShare(code); }catch(e){ old=e&&e.message==='old browser'; }
+  const v=validateGigFile(o);
+  if(!v.ok){ openSheet(tr('Link not working'),`<p class="hint">${tr(old?'Update your browser to open this link, or ask for the file.':'This link is broken or was cut off. Ask for it again, or ask for the file.')}</p>`); return; }
+  offerGigs(v.gigs,senderName(o.from),o.state);
+}
+function offerGigs(gigs,from,state){
+  const g=gigs[0], titles=songTitles(g).map(x=>x.title), have=gigs.some(x=>gigById(x.id));
+  openSheet(from?tr('{0} sent you a gig',from):tr('New gig'),`<p class="hint" style="margin-bottom:8px"><b style="color:var(--fg);font-size:18px">${esc(g.name)}</b> · ${songsN(titles.length)}</p>
+    <ul class="got">${titles.slice(0,8).map(t=>`<li>${esc(t)}</li>`).join('')}${titles.length>8?`<li>${tr('and {0} more',titles.length-8)}</li>`:''}</ul>
+    ${have?`<p class="hint" style="margin-bottom:8px">${tr('You already have this gig. Updating it keeps your notes and ✓ marks.')}</p>`:''}
+    ${state&&Object.keys(state).length?`<p class="hint" style="margin-bottom:14px">${tr('The key, capo and tempo of these songs will match the sender’s.')}</p>`:''}
+    <div class="acts"><button class="tbtn primary" id="rAdd">${have?tr('Update it'):tr('Add it')}</button><button class="tbtn" id="rCancel">${tr('Cancel')}</button></div>`,()=>{
+    $('rAdd').onclick=()=>{ applyState(gigs,state); finishImport(gigs,have?'replace':'keep'); };
+    $('rCancel').onclick=closeSheetQuiet;
+  });
+}
+
 /* ---------- navigation ---------- */
 function go(i){ location.hash = i<0 ? LIST.id : LIST.id+'-'+(i+1); }
 function route(){
+  const code=shareCodeOf(location.hash); if(code){ receiveLink(code); return; }
   closeSheetQuiet(); editing=null;
   const em=location.hash.match(/^#edit-([a-z0-9]+)$/);
   if(em&&gigById(em[1])){ useList(em[1]); showGigEditor(em[1]); return; }

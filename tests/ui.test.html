@@ -176,5 +176,39 @@ run([
  ['SC file keeps valid beats only', async()=>{ const d=await open('',{'ag-seenWelcome':true}); const v=frame.contentWindow.validateGigFile;
    const one=b=>v({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'G',beats:b,sections:[]}]}]}]}).gigs[0].sets[0].songs[0].beats;
    ok('3 kept', one(3)===3); ok('junk dropped', one('<b>')===undefined); }],
+ ['SH send builds a link with my key change, not my notes', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-seenWelcome':true,'ag-song:mybar:Tune A':{t:2,note:'secret'}});
+   d.querySelector('[data-act="sendgig"]').click(); await sleep(150);
+   ok('one song listed', d.querySelectorAll('.pk input').length===1);
+   d.getElementById('sName').value='Дарин'; d.getElementById('sName').dispatchEvent(new Event('change')); await sleep(300);
+   d.getElementById('sLink').click(); await sleep(150);
+   const msg=d.getElementById('sMsg'); ok('message shown', !!msg); const w=frame.contentWindow;
+   const o=await w.unpackShare(msg.value.split('#get=')[1]);
+   ok('gig name', o.gigs[0].name==='Friday Bar', o.gigs[0].name); ok('from', o.from==='Дарин', o.from);
+   ok('key travels', o.state['Tune A']&&o.state['Tune A'].t===2, o.state); ok('notes stay', !JSON.stringify(o).includes('secret'));
+   ok('name remembered', JSON.parse(localStorage.getItem('ag-prefs')).name==='Дарин'); }],
+ ['SH none ticked refuses to send', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   d.querySelector('[data-act="sendgig"]').click(); await sleep(150); d.getElementById('sNone').click(); await sleep(150);
+   d.getElementById('sLink').click(); await sleep(100); ok('no message', !d.getElementById('sMsg')); }],
+ ['SH opening a link adds the gig with the sender key', async()=>{ await open('',{'ag-seenWelcome':true}); const w=frame.contentWindow;
+   const code=await w.packShare({kind:'setlists-gigs',v:1,from:'Дарин',gigs:BAR,state:{'Tune A':{t:2,bpm:120}}});
+   const d=await open('#get='+code,{'ag-seenWelcome':true}); await sleep(200);
+   const h=d.querySelector('.sheet h3'); ok('asks first', h&&h.textContent.includes('Дарин'), h&&h.textContent);
+   ok('nothing saved yet', !localStorage.getItem('ag-gigs'));
+   d.getElementById('rAdd').click(); await sleep(200);
+   const g=JSON.parse(localStorage.getItem('ag-gigs')||'[]'); ok('gig added', g.length===1&&g[0].id==='mybar', g);
+   const st=JSON.parse(localStorage.getItem('ag-song:mybar:Tune A')||'{}'); ok('key + tempo applied', st.t===2&&st.bpm===120, st);
+   ok('link removed from address', !frame.contentWindow.location.hash.includes('get='), frame.contentWindow.location.hash); }],
+ ['SH resending updates and keeps my notes', async()=>{ await open('',{'ag-seenWelcome':true}); const w=frame.contentWindow;
+   const newer=JSON.parse(JSON.stringify(BAR)); newer[0].sets[0].songs.push({title:'Tune B',key:'E',capo:'',sections:[]});
+   const code=await w.packShare({kind:'setlists-gigs',v:1,from:'Дарин',gigs:newer,state:{'Tune A':{t:1}}});
+   const d=await open('#get='+code,{'ag-seenWelcome':true,'ag-gigs':BAR,'ag-song:mybar:Tune A':{t:0,note:'mine',played:true}}); await sleep(200);
+   const b=d.getElementById('rAdd'); ok('says update', b&&/Update/.test(b.textContent), b&&b.textContent); b.click(); await sleep(200);
+   const g=JSON.parse(localStorage.getItem('ag-gigs')); ok('still one gig', g.length===1, g.length); ok('new song in', g[0].sets[0].songs.length===2);
+   const st=JSON.parse(localStorage.getItem('ag-song:mybar:Tune A')); ok('note kept', st.note==='mine'&&st.played===true, st); ok('key from sender', st.t===1, st); }],
+ ['SH broken link says so', async()=>{ const d=await open('#get=zBROKEN',{'ag-seenWelcome':true}); await sleep(200);
+   const h=d.querySelector('.sheet h3'); ok('error sheet', h&&/Link not working/.test(h.textContent), h&&h.textContent); }],
+ ['SH a sent file asks the same way', async()=>{ const d=await open('#mybar',{'ag-seenWelcome':true,'ag-gigs':[{id:'other',name:'Other',sets:[]}]}); const w=frame.contentWindow;
+   w.importText(JSON.stringify({kind:'setlists-gigs',v:1,from:'Йонко',gigs:BAR,state:{}})); await sleep(100);
+   const h=d.querySelector('.sheet h3'); ok('from Йонко', h&&h.textContent.includes('Йонко'), h&&h.textContent); }],
 ]);
 </script>
