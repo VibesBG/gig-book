@@ -335,7 +335,7 @@ const BG={
  'The key, capo and tempo of these songs will match the sender’s.':'Тонът, капото и темпото на тези песни ще са като на изпращача.',
  'Link not working':'Линкът не работи','This link is broken or was cut off. Ask for it again, or ask for the file.':'Линкът е повреден или отрязан. Поискай го отново или поискай файла.',
  'Update your browser to open this link, or ask for the file.':'Обнови браузъра си, за да отвориш този линк, или поискай файла.',
- 'Lyrics':'Текст','Show':'Покажи','No lyrics yet. Tap ✎ Edit to add them.':'Още няма текст. Натисни ✎ Редактирай, за да го добавиш.','Paste or type the lyrics here':'Постави или напиши текста тук',
+ 'Lyrics':'Текст','Diagrams':'Хватки','Show':'Покажи','No lyrics yet. Tap ✎ Edit to add them.':'Още няма текст. Натисни ✎ Редактирай, за да го добавиш.','Paste or type the lyrics here':'Постави или напиши текста тук',
  'Leave an empty line between verses. Write Chorus on its own line above the chorus to mark it.':'Остави празен ред между куплетите. Напиши Припев на отделен ред над припева, за да го отбележиш.',
  'Find a song or a line of lyrics':'Търси песен или ред от текста','Speed':'Скорост','Scroll speed':'Скорост на скрола','1 is slow, 15 is fast':'1 е бавно, 15 е бързо',
  'Open songs in':'Отваряй песните в','Singers: pick Lyrics':'Певци: изберете Текст','Lyrics loaded':'Текстовете са заредени','Your lyrics are here now too':'Текстовете ти вече са и тук'
@@ -556,7 +556,7 @@ function showSong(i){
      <div class="step${st.t?' moved':''}"><button data-act="key-" aria-label="${tr('Key down a semitone')}">−</button><span class="v"><small>${tr('Key')}</small><b>${esc(shapeKey)}</b></span><button data-act="key+" aria-label="${tr('Key up a semitone')}">+</button></div>
      <div class="step${st.c!==c0?' moved':''}"><button data-act="capo-" aria-label="${tr('Capo down')}">−</button><span class="v"><small>${tr('Capo')}</small><b>${st.c||'–'}</b></span><button data-act="capo+" aria-label="${tr('Capo up')}">+</button></div>
      <button class="tbtn" data-act="tempo">♩ ${bpm?bpm:'–'} <small>BPM</small></button>
-     <button class="tbtn" data-act="chords">${tr('Chords')}</button>
+     <button class="tbtn" data-act="chords">${tr('Diagrams')}</button>
      <button class="tbtn" data-act="played" aria-pressed="${st.played}">${st.played?tr('✓ Played'):tr('Mark played')}</button>
      ${LIST.ex?'':`<button class="tbtn" data-act="edit">${tr('✎ Edit')}</button>`}`}
    </div>

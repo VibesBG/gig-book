@@ -128,7 +128,7 @@ run([
    d.querySelector('[data-act="edit"]').click(); await sleep(100); d.getElementById('fTitle').value='Tune B'; d.getElementById('fSave').click(); await sleep(150);
    ok('B state kept', JSON.parse(localStorage.getItem('ag-song:mybar:Tune B')).note==='B note'); }],
  ['FIX Chords button translated', async()=>{ const d=await open('#example-1',{'ag-seenWelcome':true,'ag-prefs':{lang:'bg'}});
-   ok('bg', d.querySelector('[data-act="chords"]').textContent==='Акорди', d.querySelector('[data-act="chords"]').textContent); }],
+   ok('bg', d.querySelector('[data-act="chords"]').textContent==='Хватки', d.querySelector('[data-act="chords"]').textContent); }],
 
  ['EX new gig removes example + welcome', async()=>{ const d=await open('');
    d.querySelector('[data-act="newgig"]').click(); await sleep(200); frame.contentDocument.getElementById('doneGig').click(); await sleep(200);
