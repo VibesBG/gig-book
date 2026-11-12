@@ -1,7 +1,7 @@
 {
- "name": "Chords Sheet",
- "short_name": "Chords",
- "description": "Chord charts for your gigs, on your phone or tablet",
+ "name": "Gig Book",
+ "short_name": "Gig Book",
+ "description": "Chords and lyrics for your gigs, the same on every phone and tablet in the band",
  "start_url": "./",
  "scope": "./",
  "display": "standalone",

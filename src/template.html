@@ -1,4 +1,4 @@
-<title>Chords Sheet</title>
+<title>Gig Book</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
 <style>
@@ -235,7 +235,7 @@ input.bigbpm{display:block;width:100%;max-width:220px;margin:6px auto 2px;backgr
 <div class="wrap">
   <header class="bar">
     <button class="tool" id="homeBtn" aria-label="All songs" hidden>☰</button>
-    <h1 id="title">Chords Sheet</h1>
+    <h1 id="title">Gig Book</h1>
     <span class="beat" id="beat" hidden></span>
     <button class="tool" id="optBtn" aria-label="Display settings">Aa</button>
   </header>
@@ -360,7 +360,7 @@ const BG={
  'You joined this gig. It updates by itself when {0} changes it.':'Присъединил си се към това участие. Обновява се само, когато {0} го промени.','the owner':'собственикът',
  'Band (live link)':'Група (линк на живо)','Everyone with the link sees this gig and gets every change. Only people you mark can edit it.':'Всеки с линка вижда участието и получава всяка промяна. Само отбелязаните от теб могат да го редактират.',
  'Send invite link':'Изпрати линк за покана','Can view':'Само гледа','Can edit':'Може да редактира','Someone':'Някой','Or send a file':'Или изпрати файл',
- 'Join “{0}” in Chords Sheet':'Присъедини се към „{0}“ в Chords Sheet','Link copied':'Линкът е копиран','Copy this link':'Копирай този линк',
+ 'Join “{0}” in Gig Book':'Присъедини се към „{0}“ в Gig Book','Link copied':'Линкът е копиран','Copy this link':'Копирай този линк',
  'Remove {0} from this gig?':'Да махна ли {0} от участието?','Removed. The old link no longer works.':'Махнат. Старият линк вече не работи.',
  'Leave gig':'Напусни участието','Delete “{0}” everywhere? It goes from all your devices and from your band’s.':'Да изтрия ли „{0}“ навсякъде? Изчезва от всичките ти устройства и от тези на групата.',
  'Leave “{0}”? It goes from all your devices.':'Да напусна ли „{0}“? Изчезва от всичките ти устройства.',
@@ -1215,7 +1215,7 @@ function bandHTML(gigId){
 }
 function wireBand(gigId){
   const r=cloud.roles[gigId]; if(!r||!r.owner||!$('bLink')) return; const {fs}=cloud.fb, ref=fs.doc(cloud.db,'gigs',r.d);
-  $('bLink').onclick=()=>{ const g=gigById(gigId), url=location.origin+location.pathname+'#join='+r.d+'.'+cloud.roles[gigId].r.invite, text=tr('Join “{0}” in Chords Sheet',g.name);
+  $('bLink').onclick=()=>{ const g=gigById(gigId), url=location.origin+location.pathname+'#join='+r.d+'.'+cloud.roles[gigId].r.invite, text=tr('Join “{0}” in Gig Book',g.name);
     if(navigator.share) navigator.share({title:g.name,text,url}).catch(()=>{});
     else if(navigator.clipboard) navigator.clipboard.writeText(url).then(()=>toast(tr('Link copied')),()=>prompt(tr('Copy this link'),url));
     else prompt(tr('Copy this link'),url); };
