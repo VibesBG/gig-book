@@ -1,0 +1,115 @@
+<!DOCTYPE html><meta charset="utf-8"><title>cloud sync test</title>
+<!-- Live test against the real Firebase project. Run from http://localhost (see tests/cloud_server.py).
+     Makes two throwaway accounts, checks sync, band invite and the security rules, then deletes everything. -->
+<iframe id="f" style="width:420px;height:700px"></iframe><pre id="out"></pre>
+<script type="module">
+const FBU='https://www.gstatic.com/firebasejs/10.14.1/firebase-';
+const [appM,authM,fs]=await Promise.all(['app','auth','firestore'].map(m=>import(FBU+m+'.js')));
+const frame=document.getElementById('f'), out=document.getElementById('out');
+const lines=[]; let fails=0;
+const log=t=>{ lines.push(t); out.textContent=lines.join('\n'); fetch('/progress',{method:'POST',body:t}).catch(()=>{}); };
+const ok=(name,cond,extra)=>{ if(!cond) fails++; log((cond?'ok   ':'FAIL ')+name+(cond||extra===undefined?'':'  '+JSON.stringify(extra))); };
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function until(fn,ms=15000){ const t=Date.now(); while(Date.now()-t<ms){ try{ const v=await fn(); if(v) return v; }catch(e){} await sleep(250); } return null; }
+const denied=p=>p.then(()=>false,e=>/permission-denied/.test(e.code||''));
+const report=()=>fetch('/result',{method:'POST',body:(fails?'FAILED '+fails:'ALL PASSED')+'\n'+lines.join('\n')});
+
+// the test reads the config from the built app, so it always tests what ships
+const html=await (await fetch('../index.html')).text();
+const FB=Function('return '+html.match(/const FB=(\{[\s\S]*?\});/)[1])();
+const tag=Date.now().toString(36), pass='Test-'+tag+'-pw';
+const mk=async name=>{ const a=appM.initializeApp(FB,name), au=authM.getAuth(a); await authM.setPersistence(au,authM.inMemoryPersistence);
+  const c=await authM.createUserWithEmailAndPassword(au,'cs-test-'+name+'-'+tag+'@example.com',pass); return {au,db:fs.getFirestore(a),uid:c.user.uid,email:c.user.email}; };
+const me=await mk('me'), bm=await mk('band'), stranger=await mk('x');
+log('accounts made');
+const W=()=>frame.contentWindow, D=()=>frame.contentDocument, E=x=>W().eval(x);
+const load=(hash)=>new Promise(r=>{ frame.onload=()=>{ const w=W(); w.console.warn=(...a)=>log('  app warn: '+a.map(x=>x&&x.code||String(x)).join(' ')); w.addEventListener('error',e=>log('  app error: '+e.message)); w.addEventListener('unhandledrejection',e=>log('  app rejection: '+(e.reason&&(e.reason.code||e.reason.message)))); setTimeout(r,300); }; frame.src='../index.html?r='+Math.random().toString(36).slice(2)+(hash||''); });
+const BAR=[{id:'mybar',name:'Friday Bar',sets:[{name:'Set 1',songs:[{title:'Tune A',key:'G',capo:'',sections:[{l:'Verse',c:['G','D']}],lyrics:'la la'},{title:'Tune B',key:'C',capo:'',sections:[]}]}]}];
+try{
+  // ---- device 1: has gigs, signs in, they go up
+  localStorage.clear(); localStorage.setItem('ag-gigs',JSON.stringify(BAR)); localStorage.setItem('ag-seenWelcome','true');
+  localStorage.setItem('ag-song:mybar:Tune A',JSON.stringify({t:2,note:'start soft'}));
+  await load('#mybar');
+  await W().cloudLoad(); await E('cloud').fb.auth.signInWithEmailAndPassword(E('cloud').auth,me.email,pass);
+  const ref=fs.doc(me.db,'gigs',me.uid+'_mybar');
+  const t0=Date.now(), up=await until(async()=>{ const s=await fs.getDoc(ref); return s.exists()&&s.data(); },40000); log('upload took '+(Date.now()-t0)+' ms');
+  ok('gig uploaded on sign-in',up&&JSON.parse(up.data).sets[0].songs[0].lyrics==='la la',up);
+  ok('owner and members set',up&&up.owner===me.uid&&up.memberIds.length===1&&up.invite.length>=16);
+  const st=await until(async()=>{ const s=await fs.getDoc(fs.doc(me.db,'users',me.uid,'state',me.uid+'_mybar')); return s.exists()&&JSON.parse(s.data().songs); });
+  ok('your key and notes uploaded',st&&st['Tune A'].t===2&&st['Tune A'].note==='start soft',st);
+  ok('backup reminder hidden when synced',!D().querySelector('.backup'));
+
+  // ---- a change on this device goes up
+  W().location.hash='mybar-1'; await sleep(300);
+  D().querySelector('[data-act="key+"]').click();
+  const st2=await until(async()=>{ const s=await fs.getDoc(fs.doc(me.db,'users',me.uid,'state',me.uid+'_mybar')); const o=JSON.parse(s.data().songs); return o['Tune A'].t===3&&o; });
+  ok('key change synced',!!st2);
+  const g=E('GIGS').map(E('plainGig')); g[0].sets[0].songs[1].lyrics='new words'; W().commit(g);
+  ok('song edit synced',!!await until(async()=>JSON.parse((await fs.getDoc(ref)).data().data).sets[0].songs[1].lyrics==='new words'));
+
+  // ---- a change from another device comes down
+  await fs.updateDoc(ref,{name:'Saturday Bar',rev:'other1',data:JSON.stringify({sets:BAR[0].sets.concat([{name:'Set 2',songs:[{title:'Tune C',key:'A',capo:'',sections:[]}]}])})});
+  ok('other device change arrives',!!await until(()=>E('GIGS')[0]&&E('GIGS')[0].name==='Saturday Bar'&&E('GIGS')[0].sets.length===2));
+  await fs.setDoc(fs.doc(me.db,'users',me.uid,'state',me.uid+'_mybar'),{songs:JSON.stringify({'Tune B':{t:-1,played:true}}),rev:'other2',updated:Date.now()});
+  ok('other device key change arrives',!!await until(()=>{ const v=JSON.parse(localStorage.getItem('ag-song:mybar:Tune B')||'{}'); return v.t===-1&&v.played&&!localStorage.getItem('ag-song:mybar:Tune A'); }));
+
+  // ---- device 2 (fresh, empty): signs in and gets everything
+  localStorage.clear(); localStorage.setItem('ag-seenWelcome','true'); localStorage.setItem('ag-cloud','true');
+  await load('');
+  ok('new device gets the gig',!!await until(()=>E('GIGS').some(x=>x.id==='mybar'&&x.name==='Saturday Bar')));
+  ok('new device gets the song settings',!!await until(()=>JSON.parse(localStorage.getItem('ag-song:mybar:Tune B')||'{}').t===-1));
+
+  // ---- band: join with the link, view only, then can edit
+  const doc=(await fs.getDoc(ref)).data();
+  const bref=fs.doc(bm.db,'gigs',me.uid+'_mybar');
+  ok('stranger cannot read',await denied(fs.getDoc(fs.doc(stranger.db,'gigs',me.uid+'_mybar'))));
+  ok('wrong invite refused',await denied(fs.updateDoc(fs.doc(stranger.db,'gigs',me.uid+'_mybar'),{memberIds:fs.arrayUnion(stranger.uid),joinWith:'x'.repeat(24),['people.'+stranger.uid]:'X'})));
+  ok('cannot join as editor',await denied(fs.updateDoc(fs.doc(stranger.db,'gigs',me.uid+'_mybar'),{memberIds:fs.arrayUnion(stranger.uid),editors:fs.arrayUnion(stranger.uid),joinWith:doc.invite})));
+  await fs.updateDoc(bref,{memberIds:fs.arrayUnion(bm.uid),joinWith:doc.invite,['people.'+bm.uid]:'Bassist'});
+  ok('band member joined and can read',(await fs.getDoc(bref)).data().memberIds.includes(bm.uid));
+  ok('view-only member cannot change songs',await denied(fs.updateDoc(bref,{data:'{"sets":[]}',rev:'b1'})));
+  ok('member cannot make themselves editor',await denied(fs.updateDoc(bref,{editors:fs.arrayUnion(bm.uid)})));
+  ok('member cannot delete',await denied(fs.deleteDoc(bref)));
+  ok('member cannot read my song settings',await denied(fs.getDoc(fs.doc(bm.db,'users',me.uid,'state',me.uid+'_mybar'))));
+  ok('owner sees the member',!!await until(()=>E('cloud').roles.mybar&&E('cloud').roles.mybar.r.memberIds.includes(bm.uid)));
+  W().location.hash='mybar'; await sleep(300); W().openSend('mybar'); await sleep(200);
+  ok('send sheet shows invite + member',!!D().getElementById('bLink')&&/Bassist/.test(D().querySelector('.band').textContent));
+  D().querySelector('.band .seg button[data-v="edit"]').click();
+  ok('owner marks member Can edit',!!await until(async()=>(await fs.getDoc(bref)).data().editors.includes(bm.uid)));
+  await fs.updateDoc(bref,{data:JSON.stringify({sets:[{name:'',songs:[{title:'Band Tune',key:'E',capo:'',sections:[]}]}]}),rev:'b2',updated:Date.now(),by:bm.uid});
+  ok('editor change reaches owner',!!await until(()=>E('GIGS')[0].sets[0].songs[0].title==='Band Tune'));
+  ok('editor cannot change members',await denied(fs.updateDoc(bref,{memberIds:fs.arrayUnion(stranger.uid)})));
+  W().closeSheetQuiet();
+
+  // ---- the app's own join flow (as the bandmate on a device)
+  const doc2=(await fs.getDoc(ref)).data();
+  await fs.updateDoc(bref,{memberIds:fs.arrayRemove(bm.uid),editors:fs.arrayRemove(bm.uid)});
+  ok('member can leave',!(await fs.getDoc(ref)).data().memberIds.includes(bm.uid));
+  await E('cloud').fb.auth.signOut(E('cloud').auth); await sleep(300);
+  localStorage.clear(); localStorage.setItem('ag-seenWelcome','true');
+  await load('#join='+me.uid+'_mybar.'+doc2.invite);
+  ok('join link asks to sign in',/Sign in to join/.test((D().getElementById('sheetHost')||{}).textContent||''));
+  D().getElementById('aEmail').value=bm.email; D().getElementById('aPass').value=pass;
+  await until(()=>!D().getElementById('aIn').disabled); D().getElementById('aIn').click();
+  ok('joined through the app',!!await until(()=>E('GIGS').some(x=>x.name==='Saturday Bar')&&/^#mybar/.test(W().location.hash)),W().location.hash);
+  ok('member sees no Edit gig',!D().querySelector('[data-act="editgig"]'));
+  const del=E('GIGS').filter(x=>x.id!=='mybar'); W().commit(del);
+  ok('member delete = leave',!!await until(async()=>!(await fs.getDoc(ref)).data().memberIds.includes(bm.uid)));
+  ok('gig still there for owner',(await fs.getDoc(ref)).exists());
+  await E('cloud').fb.auth.signOut(E('cloud').auth); await sleep(300);
+
+  // ---- owner deletes: gone from the cloud
+  localStorage.clear(); localStorage.setItem('ag-seenWelcome','true'); localStorage.setItem('ag-cloud','true');
+  await load(''); await W().cloudLoad(); await E('cloud').fb.auth.signInWithEmailAndPassword(E('cloud').auth,me.email,pass);
+  await until(()=>E('GIGS').some(x=>x.id==='mybar'));
+  W().commit(E('GIGS').filter(x=>x.id!=='mybar').map(E('plainGig')));
+  ok('owner delete removes it from the cloud',!!await until(()=>fs.getDoc(ref).then(x=>!x.exists(),e=>/permission-denied/.test(e.code))));   // a gig that isn't there can't be read either
+  await E('cloud').fb.auth.signOut(E('cloud').auth);
+}catch(e){ fails++; log('CRASH '+(e&&e.stack||e)); }
+// ---- clean up: delete test data and the throwaway accounts
+for(const u of [me,bm,stranger]){ try{ const q=await fs.getDocs(fs.collection(u.db,'users',u.uid,'state')); for(const d of q.docs) await fs.deleteDoc(d.ref);
+  const g=await fs.getDocs(fs.query(fs.collection(u.db,'gigs'),fs.where('memberIds','array-contains',u.uid))); for(const d of g.docs) if(d.data().owner===u.uid) await fs.deleteDoc(d.ref); }catch(e){ log('cleanup '+e.code); }
+  try{ await authM.deleteUser(u.au.currentUser); }catch(e){ log('delete user '+e.code); } }
+localStorage.clear();
+log('cleaned up'); await report();
+</script>

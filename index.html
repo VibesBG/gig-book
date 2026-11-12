@@ -118,6 +118,7 @@ button,input,textarea{font:inherit;color:inherit}
 .pk input{width:22px;height:22px;min-height:0;flex:none;accent-color:var(--accent)}
 .pk span{min-width:0;flex:1;text-align:left}
 .pk b{font-weight:600}
+.band{display:grid;gap:10px;margin-bottom:16px}.band .pk{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:12px}.band .pk .seg button{padding:0 10px}
 .pk small{display:block;color:var(--muted);font-size:12px}
 .pickhead{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:14px;font-weight:600}
 .pickhead span{display:flex;gap:14px}
@@ -514,8 +515,10 @@ function mergeLyricsPack(gigs,pack,editOf,replace){
 
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem('ag-'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
-             set(k,v){try{localStorage.setItem('ag-'+k,JSON.stringify(v));return true}catch(e){return false}},
-             del(k){try{localStorage.removeItem('ag-'+k)}catch(e){}}};
+             set(k,v){try{localStorage.setItem('ag-'+k,JSON.stringify(v));if(k.startsWith('song:'))stateTouched(k);return true}catch(e){return false}},
+             del(k){try{localStorage.removeItem('ag-'+k);if(k.startsWith('song:'))stateTouched(k)}catch(e){}}};
+// sync (see "sync" below): who is signed in, what the cloud has, and which gigs you may change
+const cloud={user:null,fb:null,db:null,auth:null,ready:null,unsub:[],roles:{},rk:'',quiet:false,stT:{},lastStates:null,goTo:null,tries:0};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let tt; function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),1700)}
 
@@ -526,7 +529,7 @@ Object.defineProperty(EXAMPLE,'name',{get:()=>tr('Example gig')});
 let GIGS=[], LISTS=[];
 const loadGigs=()=>sanitizeGigs(store.get('gigs',[]));
 const plainGig=g=>({id:g.id,name:g.name,sets:g.sets.map(s=>({name:s.name,songs:s.songs.map(x=>{const y=Object.assign({},x);delete y.set;delete y.idx;delete y.list;delete y.no;return y})}))});
-function saveGigs(gigs){ const ok=store.set('gigs',gigs.map(plainGig)); if(ok) GIGS=gigs; return ok; }
+function saveGigs(gigs){ const before=cloud.user&&!cloud.quiet?store.get('gigs',[]):null, ok=store.set('gigs',gigs.map(plainGig)); if(ok){ GIGS=gigs; if(before) cloudPushDiff(before); } return ok; }
 function rebuild(){
   GIGS=loadGigs();
   // the example gig steps aside once you have a gig of your own (Aa can bring it back)
@@ -593,6 +596,25 @@ const BG={
  'Lyrics':'Текст','Diagrams':'Хватки','Show':'Покажи','No lyrics yet. Tap ✎ Edit to add them.':'Още няма текст. Натисни ✎ Редактирай, за да го добавиш.','Paste or type the lyrics here':'Постави или напиши текста тук',
  'Leave an empty line between verses. Write Chorus on its own line above the chorus to mark it.':'Остави празен ред между куплетите. Напиши Припев на отделен ред над припева, за да го отбележиш.',
  'Find a song or a line of lyrics':'Търси песен или ред от текста','Speed':'Скорост','Scroll speed':'Скорост на скрола','1 is slow, 15 is fast':'1 е бавно, 15 е бързо',
+ 'Sync':'Синхронизация','Same gigs on all your devices':'Едни и същи участия на всичките ти устройства','Account':'Профил','Sign in':'Вход','Sign out':'Изход',
+ 'Signed in as {0}':'Влязъл си като {0}','Your gigs, lyrics, keys and notes are the same on every device where you sign in. Changes made offline go up when you are back online.':'Участията, текстовете, тоновете и бележките са еднакви на всяко устройство, където си влязъл. Промените без интернет се качват, когато има връзка.',
+ 'Signed out. Your gigs stay on this device.':'Излезе. Участията остават на това устройство.','Sign in on each phone, tablet and computer. Your gigs stay the same everywhere, and your band can join a gig with a link.':'Влез на всеки телефон, таблет и компютър. Участията са еднакви навсякъде, а групата може да се присъедини към участие с линк.',
+ 'Sign in with Google':'Вход с Google','Or with email':'Или с имейл','Email':'Имейл','Password':'Парола','New account':'Нов профил','Forgot password?':'Забравена парола?',
+ 'No internet. Try again when you’re online.':'Няма интернет. Опитай пак, когато има връзка.','Signed in. Syncing…':'Влезе. Синхронизирам…','Type your email and password.':'Напиши имейла и паролата си.',
+ 'Type your email and a password of at least 6 characters.':'Напиши имейл и парола от поне 6 знака.','Type your email first.':'Първо напиши имейла си.','Check your email for a link to set a new password.':'Провери имейла си за линк за нова парола.',
+ 'The browser blocked the sign-in window. Allow pop-ups, or use email.':'Браузърът спря прозореца за вход. Разреши изскачащите прозорци или ползвай имейл.','Wrong email or password. New here? Tap New account.':'Грешен имейл или парола. Нов си? Натисни Нов профил.',
+ 'That email already has an account. Tap Sign in.':'Този имейл вече има профил. Натисни Вход.','That email doesn’t look right.':'Имейлът не изглежда правилно.','Use a password of at least 6 characters.':'Ползвай парола от поне 6 знака.',
+ 'Sign-in isn’t switched on for this address yet.':'Входът още не е включен за този адрес.','Couldn’t sign in.':'Не успях да вляза.','The cloud said no. Are you still in this gig?':'Облакът отказа. Още ли си в това участие?',
+ 'Sign in to join the gig your band shared.':'Влез, за да се присъединиш към участието, което групата сподели.','Joining…':'Присъединявам…','You joined “{0}”':'Присъедини се към „{0}“',
+ 'This invite link doesn’t work any more. Ask for a new one.':'Този линк за покана вече не работи. Поискай нов.','No internet. Open the link again when you’re online.':'Няма интернет. Отвори линка пак, когато има връзка.',
+ 'Tip: sign in under Aa → Sync and you can send your band a link instead. They join once and always have your latest version.':'Съвет: влез от Aa → Синхронизация и можеш да пратиш на групата линк. Влизат веднъж и винаги имат последната ти версия.',
+ 'You joined this gig. It updates by itself when {0} changes it.':'Присъединил си се към това участие. Обновява се само, когато {0} го промени.','the owner':'собственикът',
+ 'Band (live link)':'Група (линк на живо)','Everyone with the link sees this gig and gets every change. Only people you mark can edit it.':'Всеки с линка вижда участието и получава всяка промяна. Само отбелязаните от теб могат да го редактират.',
+ 'Send invite link':'Изпрати линк за покана','Can view':'Само гледа','Can edit':'Може да редактира','Someone':'Някой','Or send a file':'Или изпрати файл',
+ 'Join “{0}” in Chords Sheet':'Присъедини се към „{0}“ в Chords Sheet','Link copied':'Линкът е копиран','Copy this link':'Копирай този линк',
+ 'Remove {0} from this gig?':'Да махна ли {0} от участието?','Removed. The old link no longer works.':'Махнат. Старият линк вече не работи.',
+ 'Leave gig':'Напусни участието','Delete “{0}” everywhere? It goes from all your devices and from your band’s.':'Да изтрия ли „{0}“ навсякъде? Изчезва от всичките ти устройства и от тези на групата.',
+ 'Leave “{0}”? It goes from all your devices.':'Да напусна ли „{0}“? Изчезва от всичките ти устройства.',
  'Open songs in':'Отваряй песните в','Singers: pick Lyrics':'Певци: изберете Текст','Lyrics loaded':'Текстовете са заредени','Your lyrics are here now too':'Текстовете ти вече са и тук'
 };
 function tr(s,...a){ let r=(prefs.lang==='bg'&&BG[s])||s; a.forEach((v,i)=>{ r=r.split('{'+i+'}').join(v); }); return r; }
@@ -613,7 +635,8 @@ const HELP={en:[
  ['Add to Home Screen','iPhone/iPad: open in Safari, tap Share, then “Add to Home Screen”. Android: Chrome menu ⋮, then “Add to Home screen”. After the first visit it works without internet.'],
  ['Send to a bandmate','Open a gig and tap ↗ Send. Pick the songs, tap Send file, then choose Viber, WhatsApp or Messenger and the person. They save the file and open it with Load a file; the app asks whether to add the gig. Your key, capo and tempo go with it; your notes stay yours. Send it again after a change and their copy is updated.'],
  ['Back up and share','In a gig, tap “Save gig to file” to back it up or send it to a bandmate. “Load a file” puts it on another phone. Aa › My gigs › Save all makes one backup of everything.'],
- ['Your data','Your gigs, notes and changes are saved only on this device. Nothing is sent anywhere. Clearing the browser data deletes them, so keep a backup file.']
+ ['Sync and your band','Aa › Sync › Sign in (Google or email) on every phone, tablet and computer you use. Your gigs, lyrics, keys, notes and ✓ marks are then the same everywhere, by themselves. No internet? Keep playing; changes go up when you are back online.\nTo share a gig with the band, open it, tap ↗ Send, then “Send invite link”. They sign in once and always have your latest version. They can only look, unless you mark them “Can edit”.'],
+ ['Your data','Not signed in: your gigs, notes and changes are only on this device, so keep a backup file. Signed in: they are also kept in your account, and only you (and the band members of a gig you share) can see them.']
 ],bg:[
  ['Направи участие','Натисни „Направи свое участие“ (или ＋ Ново участие). Дай му име и добави песни. С ＋ Сет и ＋ Почивка го делиш на сетове, а с ↑ ↓ сменяш реда.'],
  ['Въведи песен','Напиши името на частта на отделен ред, после акордите, разделени с |. Добави x2 в края на реда, за да се повтори.<pre>Куплет\nG | D | Am | C  x2\nПрипев\nC | G | D | D</pre>Празен ред продължава частта без ново име.'],
@@ -624,6 +647,7 @@ const HELP={en:[
  ['Добави на началния екран','iPhone/iPad: отвори в Safari, натисни Сподели, после „Добави към началния екран“. Android: менюто ⋮ в Chrome, после „Добави към началния екран“. След първото отваряне работи и без интернет.'],
  ['Изпрати на колега','Отвори участие и натисни ↗ Изпрати. Избери песните, натисни „Изпрати файла“ и избери Viber, WhatsApp или Messenger и човека. Той запазва файла и го отваря със „Зареди файл“; приложението пита дали да добави участието. Тонът, капото и темпото отиват с него, бележките остават твои. Прати го пак след промяна и копието му се обновява.'],
  ['Резервно копие и споделяне','В участие натисни „Запази във файл“, за да го пазиш или пратиш на колега. „Зареди файл“ го слага на друг телефон. Aa › Моите участия › Запази всички прави едно копие на всичко.'],
+ ['Синхронизация и групата','Aa › Синхронизация › Вход (Google или имейл) на всеки телефон, таблет и компютър. Участията, текстовете, тоновете, бележките и ✓ отметките са еднакви навсякъде, сами. Няма интернет? Продължавай да свириш; промените се качват, когато има връзка.\nЗа да споделиш участие с групата, отвори го, натисни ↗ Изпрати, после „Изпрати линк за покана“. Те влизат веднъж и винаги имат последната ти версия. Само гледат, освен ако не ги отбележиш „Може да редактира“.'],
  ['Твоите данни','Участията, бележките и промените се пазят само на това устройство. Нищо не се изпраща никъде. Ако изчистиш данните на браузъра, те се трият, затова пази резервен файл.']
 ]};
 function openHelp(){
@@ -753,8 +777,8 @@ function showList(){
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make my gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button><button class="tbtn" id="wHelp">${tr('Help')}</button><button class="tbtn" id="wGot">${tr('Got it')}</button></div></div>`
     :GIGS.length?'':`<div class="card" id="emptyCard"><h2>${tr('Make it yours')}</h2><p>${tr('This is an example gig. Make your own gig and type your songs in, or load a gig file someone sent you.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make your own gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div></div>`;
-  const acts=GIGS.length?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${LIST.ex?'':`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button><button class="tbtn" data-act="sendgig">${tr('↗ Send')}</button>`}<button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div>`:'';
-  const unsaved=GIGS.length&&store.get('dirty',0)>store.get('saved',0)?`<div class="backup"><span>${tr('Your changes are only on this phone. Save them to a file so you never lose them.')}</span><button class="tbtn primary" id="bkSave">${tr('Save all')}</button></div>`:'';
+  const acts=GIGS.length?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${LIST.ex?'':(canEdit(LIST.id)?`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button>`:'')+`<button class="tbtn" data-act="sendgig">${tr('↗ Send')}</button>`}<button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div>`:'';
+  const unsaved=GIGS.length&&!cloud.user&&store.get('dirty',0)>store.get('saved',0)?`<div class="backup"><span>${tr('Your changes are only on this phone. Save them to a file so you never lose them.')}</span><button class="tbtn primary" id="bkSave">${tr('Save all')}</button></div>`:'';
   view.innerHTML='<div class="list">'+sw+empty+acts+unsaved+find+'<div id="listBody"></div></div>';
   if($('bkSave')) $('bkSave').onclick=()=>saveFile(GIGS,'my-gigs.setlist.json');
   renderListBody();
@@ -807,13 +831,13 @@ function showSong(i){
   let h=`<article class="song">
    <div class="tb">${vsw}${mode==='lyrics'?`
      <button class="tbtn" data-act="played" aria-pressed="${st.played}">${st.played?tr('✓ Played'):tr('Mark played')}</button>
-     ${LIST.ex?'':`<button class="tbtn" data-act="edit">${tr('✎ Edit')}</button>`}`:`
+     ${LIST.ex||!canEdit(LIST.id)?'':`<button class="tbtn" data-act="edit">${tr('✎ Edit')}</button>`}`:`
      <div class="step${st.t?' moved':''}"><button data-act="key-" aria-label="${tr('Key down a semitone')}">−</button><span class="v"><small>${tr('Key')}</small><b>${esc(shapeKey)}</b></span><button data-act="key+" aria-label="${tr('Key up a semitone')}">+</button></div>
      <div class="step${st.c!==c0?' moved':''}"><button data-act="capo-" aria-label="${tr('Capo down')}">−</button><span class="v"><small>${tr('Capo')}</small><b>${st.c||'–'}</b></span><button data-act="capo+" aria-label="${tr('Capo up')}">+</button></div>
      <button class="tbtn" data-act="tempo">♩ ${bpm?bpm:'–'} <small>BPM</small></button>
      <button class="tbtn" data-act="chords">${tr('Diagrams')}</button>
      <button class="tbtn" data-act="played" aria-pressed="${st.played}">${st.played?tr('✓ Played'):tr('Mark played')}</button>
-     ${LIST.ex?'':`<button class="tbtn" data-act="edit">${tr('✎ Edit')}</button>`}`}
+     ${LIST.ex||!canEdit(LIST.id)?'':`<button class="tbtn" data-act="edit">${tr('✎ Edit')}</button>`}`}
    </div>
    <p class="sub">${s.artist?`<span><b>${esc(s.artist)}</b></span>`:''}${mode==='chords'&&st.c?`<span>${tr('Sounds in')} <b>${esc(soundKey)}</b></span>`:''}${mode==='chords'&&(st.t||st.c!==c0)?`<span>${tr('Original:')} <b>${esc(s.key)}${c0?' '+tr('capo')+' '+c0:''}</b> <button class="tbtn" style="height:30px;padding:0 10px" data-act="reset">${tr('Reset')}</button></span>`:''}<span>${esc(LIST.name)} · ${esc(s.set)} · ${tr('{0} of {1}',s.idx+1,SONGS.length)}</span></p>${s.tip?`<p class="tip">${esc(s.tip[prefs.lang]||s.tip.en||'')}</p>`:''}`;
   if(mode==='lyrics') h+=s.lyrics?`<div class="lyrics">${lyricsHTML(s.lyrics)}</div>`:`<p class="empty">${LIST.ex?'':tr('No lyrics yet. Tap ✎ Edit to add them.')}</p>`;
@@ -901,6 +925,7 @@ function openOptions(){
     <div class="opt"><span>${tr('Simplify chords')}<small>Am7 → Am, Cadd9 → C, D/F# → D</small></span>${segHTML('optSimple',[['1',tr('On')],['0',tr('Off')]],prefs.simple?'1':'0')}</div>
     <div class="opt"><span>${tr('Sharps or flats')}<small>${tr('How transposed chords are spelled')}</small></span>${segHTML('optAcc',[['auto',tr('Auto')],['sharp','♯'],['flat','♭']],prefs.acc)}</div>
     ${GIGS.length?`<div class="opt"><span>${tr('Example gig')}<small>${tr('Show it next to your own gigs')}</small></span>${segHTML('optEx',[['show',tr('Show')],['hide',tr('Hide')]],prefs.showExample?'show':'hide')}</div>`:''}
+    <div class="opt"><span>${tr('Sync')}<small>${cloud.user?esc(cloud.user.email||cloud.user.displayName||''):tr('Same gigs on all your devices')}</small></span><button class="tbtn${cloud.user?'':' primary'}" id="oSync">${cloud.user?tr('Account'):tr('Sign in')}</button></div>
     <div class="opt"><span>${tr('My gigs')}<small>${tr('Save all your gigs to one file (backup), or load a file')}</small></span><div class="acts">${GIGS.length?`<button class="tbtn" id="oSaveAll">${tr('Save all')}</button>`:''}<button class="tbtn" id="oLoad">${tr('Load')}</button></div></div>
     <div class="opt"><span>${tr('Help')}<small>${tr('How to use the app')}</small></span><button class="tbtn" id="oHelp">${tr('Open')}</button></div>
   </div>`,()=>{
@@ -916,6 +941,7 @@ function openOptions(){
     if($('oSaveAll')) $('oSaveAll').onclick=()=>saveFile(GIGS,'my-gigs.setlist.json');
     $('oLoad').onclick=()=>{closeSheetQuiet();pickFile()};
     $('oHelp').onclick=openHelp;
+    $('oSync').onclick=()=>openAccount();
   });
 }
 const refresh=()=>{ cur>=0?rerender():editing?showGigEditor(editing):$('listBody')&&showList(); };
@@ -1069,7 +1095,7 @@ function showGigEditor(id){
     <label class="fl">${tr('Gig name')}<input class="find" id="gigName" value="${esc(g.name)}" maxlength="40" autocomplete="off"></label>
     <div class="items">${items.map(row).join('')||`<p class="empty">${tr('No songs yet. Add your first song.')}</p>`}</div>
     <div class="acts"><button class="tbtn primary" id="addSong">${tr('＋ Song')}</button><button class="tbtn" id="addSet">${tr('＋ Set')}</button><button class="tbtn" id="addBreak">${tr('＋ Break')}</button></div>
-    <div class="acts" id="gigActs"><button class="tbtn" id="sendGig">${tr('↗ Send')}</button><button class="tbtn" id="saveGigFile">${tr('Save gig to file')}</button><button class="tbtn" id="delGig">${tr('Delete gig')}</button><button class="tbtn primary" id="doneGig">${tr('Done')}</button></div></div>`;
+    <div class="acts" id="gigActs"><button class="tbtn" id="sendGig">${tr('↗ Send')}</button><button class="tbtn" id="saveGigFile">${tr('Save gig to file')}</button><button class="tbtn" id="delGig">${cloud.roles[id]&&!cloud.roles[id].owner?tr('Leave gig'):tr('Delete gig')}</button><button class="tbtn primary" id="doneGig">${tr('Done')}</button></div></div>`;
   const put=list=>{ if(commit(GIGS.map(x=>x.id===id?Object.assign({},x,{sets:unflattenGig(list)}):x))) showGigEditor(id); };
   $('gigName').onchange=e=>{ const v=e.target.value.trim()||tr('My gig'); if(commit(GIGS.map(x=>x.id===id?Object.assign({},x,{name:v}):x))){ showGigEditor(id); toast(tr('Saved')); } };
   view.querySelectorAll('.itset,.itbrk').forEach(inp=>inp.onchange=()=>{ const it=items[+inp.dataset.i]; if(it.k==='set') it.name=inp.value.trim(); else it.text=inp.value.trim()||tr('Break'); put(items); });
@@ -1079,7 +1105,7 @@ function showGigEditor(id){
   $('addSong').onclick=()=>openSongEditor(id,null);
   $('addSet').onclick=()=>{ items.push({k:'set',name:tr('Set {0}',unflattenGig(items).length+1)}); put(items); };
   $('addBreak').onclick=()=>{ items.push({k:'break',text:tr('Break')}); put(items); };
-  $('delGig').onclick=()=>{ if(!confirm(tr('Delete the gig “{0}” from this device?',g.name))) return; if(commit(GIGS.filter(x=>x.id!==id))){ store.set('list',LISTS[0].id); location.hash=''; toast(tr('Gig deleted')); } };
+  $('delGig').onclick=()=>{ const r=cloud.roles[id]; if(!confirm(!r?tr('Delete the gig “{0}” from this device?',g.name):r.owner?tr('Delete “{0}” everywhere? It goes from all your devices and from your band’s.',g.name):tr('Leave “{0}”? It goes from all your devices.',g.name))) return; if(commit(GIGS.filter(x=>x.id!==id))){ store.set('list',LISTS[0].id); location.hash=''; toast(tr('Gig deleted')); } };
   $('doneGig').onclick=()=>{ location.hash=id; };
   $('saveGigFile').onclick=()=>saveFile([g]);
   $('sendGig').onclick=()=>openSend(id);
@@ -1206,13 +1232,14 @@ function applyState(gigs,state){
 function openSend(gigId){
   const g=gigById(gigId); if(!g) return;
   const songs=songTitles(g);
-  openSheet(tr('Send “{0}”',g.name),`<div class="form">
+  openSheet(tr('Send “{0}”',g.name),`<div class="form">${bandHTML(gigId)}
     <label>${tr('Your name')}<input id="sName" value="${esc(prefs.name||'')}" maxlength="40" autocomplete="name" placeholder="${tr('So they know who sent it')}"></label>
     <div class="pickhead">${tr('Songs to send')}<span><button class="linkbtn" id="sAll">${tr('All')}</button><button class="linkbtn" id="sNone">${tr('None')}</button></span></div>
     <div class="pick">${songs.map((x,i)=>`<label class="pk"><input type="checkbox" data-i="${i}" checked><span><b>${esc(x.title)}</b>${x.artist?`<small>${esc(x.artist)}</small>`:''}</span></label>`).join('')}</div>
     <p class="hint">${tr('Your key, capo and tempo changes go with the songs. Your notes stay private.')}</p>
     <div class="acts"><button class="tbtn primary" id="sFile">${tr('Send file')}</button></div>
     <p class="hint">${tr('Pick Viber, WhatsApp or Messenger, then the person. They save the file and open it with Load a file.')}</p></div>`,()=>{
+    wireBand(gigId);
     const boxes=[...$('sheetHost').querySelectorAll('.pk input')];
     const keep=()=>new Set(boxes.filter(b=>b.checked).map(b=>+b.dataset.i));
     $('sAll').onclick=()=>boxes.forEach(b=>b.checked=true);
@@ -1246,13 +1273,215 @@ function offerGigs(gigs,from,state){
   });
 }
 
+/* ---------- sync: sign in and your gigs are the same on all your devices; the band joins a gig with a link ---------- */
+// Firebase (Google). Signed out, nothing is loaded and nothing leaves the device.
+// Cloud: gigs/{doc} = {gid, owner, memberIds, editors, people, invite, name, data, rev, updated, by}
+//        users/{uid}/state/{doc} = your key, capo, tempo, notes and ✓ for that gig's songs
+// Each write gets a new random rev; a device takes the cloud version whenever its rev isn't the one it last had (last write wins).
+const FB={apiKey:'AIzaSyCLjAIRoAoabysdBu_PuNOP35TlEYo7J7Y',authDomain:'chords-sheet-f3ef7.firebaseapp.com',projectId:'chords-sheet-f3ef7',
+  storageBucket:'chords-sheet-f3ef7.firebasestorage.app',messagingSenderId:'78357445650',appId:'1:78357445650:web:e135a80c301979366beccb'};
+const FBU='https://www.gstatic.com/firebasejs/10.14.1/firebase-';
+// ag-sync: {uid, g:{gigId:{d:cloud doc, rev}}, s:{gigId: rev of your song settings}}
+const syncMap=()=>{ const m=store.get('sync',{}); m.g=m.g||{}; m.s=m.s||{}; return m; };
+const canEdit=id=>{ const r=cloud.roles[id]; return !r||r.edit; };
+const myName=()=>((cloud.user&&(cloud.user.displayName||(cloud.user.email||'').split('@')[0]))||prefs.name||'').slice(0,40);
+const secret=()=>{ const a=new Uint8Array(15); crypto.getRandomValues(a); return [...a].map(b=>b.toString(36).padStart(2,'0')).join('').slice(0,24); };
+function cloudLoad(){
+  if(cloud.ready) return cloud.ready;
+  const p=Promise.all(['app','auth','firestore'].map(m=>import(FBU+m+'.js'))).then(([app,auth,fs])=>{
+    const a=app.initializeApp(FB); let db;
+    try{ db=fs.initializeFirestore(a,{localCache:fs.persistentLocalCache({tabManager:fs.persistentMultipleTabManager()})}); }catch(e){ db=fs.getFirestore(a); }
+    cloud.fb={auth,fs}; cloud.db=db; cloud.auth=auth.getAuth(a);
+    auth.onAuthStateChanged(cloud.auth,u=>{ const was=cloud.user; cloud.user=u;
+      if(u&&(!was||was.uid!==u.uid)) cloudStart(); else if(!u&&was){ cloudStop(); cloudRefresh(); } });
+    return cloud.auth.authStateReady();
+  });
+  cloud.ready=p; p.catch(()=>{ cloud.ready=null; });
+  return p;
+}
+function cloudStart(){
+  const {fs}=cloud.fb, uid=cloud.user.uid; store.set('cloud',true);
+  let m=syncMap();
+  if(m.uid!==uid){ if(GIGS.length) store.set('preSync',GIGS.map(plainGig)); m={uid,g:{},s:{}}; store.set('sync',m); }   // a copy of what was here, just in case
+  cloudStop();
+  cloud.unsub=[
+    fs.onSnapshot(fs.query(fs.collection(cloud.db,'gigs'),fs.where('memberIds','array-contains',uid)),{includeMetadataChanges:true},onGigs,listenErr),
+    fs.onSnapshot(fs.collection(cloud.db,'users',uid,'state'),onStates,listenErr)];
+  const j=store.get('join',null); if(j){ store.del('join'); cloudJoin(j.d,j.k); }
+  cloudRefresh();
+}
+function cloudStop(){ cloud.unsub.forEach(f=>{ try{ f(); }catch(e){} }); cloud.unsub=[]; cloud.roles={}; cloud.rk=''; cloud.lastStates=null; }
+// Right after signing in, the database can still see the old (signed-out) you for a moment and say no: try again.
+function listenErr(e){ if(cloud.user&&/permission-denied|unauthenticated/.test((e&&e.code)||'')&&cloud.tries<6){ cloud.tries++; const u=cloud.user.uid;
+  setTimeout(()=>{ if(cloud.user&&cloud.user.uid===u) cloudStart(); },800*cloud.tries); } else cloudErr(e); }
+function cloudErr(e){ const c=(e&&e.code)||'';
+  if(/permission-denied/.test(c)) toast(tr('The cloud said no. Are you still in this gig?')); else if(!/unavailable|cancelled/.test(c)) console.warn(e); }
+// redraw after something came from the cloud, without getting in the way of what you're doing
+function cloudRefresh(){
+  rebuild(); if(!LIST||!LISTS.some(l=>l.id===LIST.id)){ route(); return; } useList(LIST.id);
+  const a=document.activeElement; if(sheetOpen()||(a&&a.matches&&a.matches('input,textarea'))) return;
+  if(cur>=0){ if(cur>=SONGS.length) go(SONGS.length-1); else if(!scrolling) rerender(); }
+  else if(editing){ if(canEdit(editing)) showGigEditor(editing); else location.hash=editing; }
+  else if($('listBody')) showList();
+}
+function onGigs(snap){
+  if(!cloud.user) return;
+  const uid=cloud.user.uid, m=syncMap(), byDoc={}, seen=new Set(), roles={}; Object.keys(m.g).forEach(id=>byDoc[m.g[id].d]=id);
+  let gigs=GIGS.map(plainGig), touched=false; const has=id=>gigs.some(g=>g.id===id);
+  snap.docs.forEach(doc=>{ const r=doc.data(); seen.add(doc.id);
+    let id=byDoc[doc.id];
+    if(!id){   // new on this device. Your own gig with the same id is the same gig (the cloud copy wins); anything else gets a free id.
+      id=String(r.gid||'').toLowerCase().replace(/[^a-z0-9]/g,'')||'gig';
+      if(m.g[id]||(has(id)&&doc.id!==uid+'_'+id)){ let n=2; while(m.g[id+n]||has(id+n)) n++; id=id+n; }
+      m.g[id]={d:doc.id,rev:''}; byDoc[doc.id]=id; }
+    roles[id]={d:doc.id,owner:r.owner===uid,edit:r.owner===uid||(r.editors||[]).includes(uid),r};
+    if(doc.metadata.hasPendingWrites||r.rev===m.g[id].rev) return;
+    let g=null; try{ g=sanitizeGig({id,name:String(r.name||''),sets:JSON.parse(r.data).sets}); }catch(e){}
+    if(!g) return;
+    const i=gigs.findIndex(x=>x.id===id); if(i>=0) gigs[i]=g; else gigs.push(g);
+    m.g[id].rev=r.rev; touched=true;
+  });
+  cloud.roles=roles;
+  const server=!snap.metadata.fromCache; if(server) cloud.tries=0;
+  if(server) Object.keys(m.g).forEach(id=>{ if(!seen.has(m.g[id].d)){   // gone: the owner deleted it, or you left or were taken off
+    delete m.g[id]; delete m.s[id]; if(has(id)){ gigs=gigs.filter(g=>g.id!==id); touched=true; } } });
+  store.set('sync',m);
+  if(touched){ cloud.quiet=true; saveGigs(gigs); cloud.quiet=false; }
+  if(server){
+    GIGS.filter(g=>!m.g[g.id]).forEach(g=>{ pushGig(plainGig(g)); pushState(g.id); });   // gigs only on this device go up
+    if(cloud.lastStates) onStates(cloud.lastStates);
+    if(cloud.goTo){ const id=Object.keys(m.g).find(k=>m.g[k].d===cloud.goTo); if(id&&gigById(id)){ cloud.goTo=null; toast(tr('You joined “{0}”',gigById(id).name)); rebuild(); location.hash=id; return; } }
+  }
+  const rk=JSON.stringify(Object.keys(roles).map(k=>[k,roles[k].edit]));
+  if(touched||rk!==cloud.rk){ cloud.rk=rk; cloudRefresh(); }
+}
+function pushGig(g){
+  if(!cloud.user) return; const {fs}=cloud.fb, uid=cloud.user.uid, m=syncMap(), rev=secret().slice(0,12), k=m.g[g.id];
+  const v={name:g.name,data:JSON.stringify({sets:g.sets}),rev,updated:Date.now(),by:uid};
+  if(k){ if(!canEdit(g.id)) return; fs.updateDoc(fs.doc(cloud.db,'gigs',k.d),v).catch(cloudErr); k.rev=rev; }
+  else { const d=uid+'_'+g.id; fs.setDoc(fs.doc(cloud.db,'gigs',d),Object.assign({gid:g.id,owner:uid,memberIds:[uid],editors:[],people:{[uid]:myName()},invite:secret()},v)).catch(cloudErr); m.g[g.id]={d,rev}; }
+  store.set('sync',m);
+}
+function cloudPushDiff(before){
+  const now=store.get('gigs',[]), m=syncMap(), was={}; before.forEach(g=>was[g.id]=JSON.stringify([g.name,g.sets]));
+  now.forEach(g=>{ if(was[g.id]!==JSON.stringify([g.name,g.sets])) pushGig(g); });
+  const ids=new Set(now.map(g=>g.id)); before.forEach(g=>{ if(!ids.has(g.id)&&m.g[g.id]) dropGig(g.id); });
+}
+// You deleted a gig: the owner deletes it for everyone; a band member just leaves it.
+function dropGig(id){
+  const {fs}=cloud.fb, m=syncMap(), k=m.g[id], r=cloud.roles[id], uid=cloud.user.uid, ref=fs.doc(cloud.db,'gigs',k.d);
+  (r&&!r.owner?fs.updateDoc(ref,{memberIds:fs.arrayRemove(uid),editors:fs.arrayRemove(uid)}):fs.deleteDoc(ref)).catch(cloudErr);
+  fs.deleteDoc(fs.doc(cloud.db,'users',uid,'state',k.d)).catch(()=>{});
+  delete m.g[id]; delete m.s[id]; store.set('sync',m);
+}
+// your key, capo, tempo, notes and ✓ marks: sent a moment after you stop changing them
+function stateTouched(k){ if(!cloud.user||cloud.quiet) return; const id=k.split(':')[1]; clearTimeout(cloud.stT[id]); cloud.stT[id]=setTimeout(()=>pushState(id),1200); }
+function pushState(id){
+  if(!cloud.user) return; const m=syncMap(), k=m.g[id], g=gigById(id); if(!k||!g) return;
+  const songs={}; songTitles(g).forEach(x=>{ const v=store.get('song:'+id+':'+x.title,null); if(v&&typeof v==='object'&&Object.keys(v).length) songs[x.title]=v; });
+  const rev=secret().slice(0,12), {fs}=cloud.fb; m.s[id]=rev; store.set('sync',m);
+  fs.setDoc(fs.doc(cloud.db,'users',cloud.user.uid,'state',k.d),{songs:JSON.stringify(songs),rev,updated:Date.now()}).catch(cloudErr);
+}
+function cleanState(v){ if(!v||typeof v!=='object') return null; const o={}, t=parseInt(v.t,10), c=parseInt(v.c,10), b=parseInt(v.bpm,10);
+  if(t>=-11&&t<=11) o.t=t; if(c>=0&&c<=9) o.c=c; if(b>=30&&b<=300) o.bpm=b; if(v.played===true) o.played=true; if(typeof v.note==='string'&&v.note) o.note=v.note.slice(0,5000);
+  return Object.keys(o).length?o:null; }
+function onStates(snap){
+  cloud.lastStates=snap; if(!cloud.user) return;
+  const m=syncMap(), byDoc={}; Object.keys(m.g).forEach(id=>byDoc[m.g[id].d]=id); let touched=false;
+  snap.docs.forEach(doc=>{ const id=byDoc[doc.id], r=doc.data(), g=id&&gigById(id); if(!g||doc.metadata.hasPendingWrites||r.rev===m.s[id]) return;
+    let songs; try{ songs=JSON.parse(r.songs)||{}; }catch(e){ return; }
+    cloud.quiet=true;
+    songTitles(g).forEach(x=>{ const k='song:'+id+':'+x.title, v=cleanState(songs[x.title]); if(v) store.set(k,v); else store.del(k); });
+    cloud.quiet=false; m.s[id]=r.rev; touched=true; });
+  if(touched){ store.set('sync',m); cloudRefresh(); }
+}
+// #join=<doc>.<secret>: the link from ↗ Send › Send invite link
+function joinLink(d,k){
+  if(cloud.user){ cloudJoin(d,k); return; }
+  store.set('join',{d,k});
+  if(!store.get('cloud',false)){ openAccount(tr('Sign in to join the gig your band shared.')); return; }
+  cloudLoad().then(()=>{ if(!cloud.user) openAccount(tr('Sign in to join the gig your band shared.'));
+      else if(store.get('join',null)){ store.del('join'); cloudJoin(d,k); } },
+    ()=>toast(tr('No internet. Open the link again when you’re online.')));
+}
+function cloudJoin(d,k){
+  const m=syncMap(), have=Object.keys(m.g).find(id=>m.g[id].d===d); if(have&&gigById(have)){ location.hash=have; return; }
+  const {fs}=cloud.fb, uid=cloud.user.uid; cloud.goTo=d; toast(tr('Joining…'));
+  fs.updateDoc(fs.doc(cloud.db,'gigs',d),{memberIds:fs.arrayUnion(uid),joinWith:k,['people.'+uid]:myName()||tr('Someone')})
+    .catch(e=>{ cloud.goTo=null; if(/permission-denied|not-found/.test(e&&e.code||'')) openSheet(tr('Link not working'),`<p class="hint">${tr('This invite link doesn’t work any more. Ask for a new one.')}</p>`); else cloudErr(e); });
+}
+function authMsg(e){ const c=(e&&e.code)||'';
+  if(/popup-closed|cancelled-popup/.test(c)) return '';
+  if(/popup-blocked/.test(c)) return tr('The browser blocked the sign-in window. Allow pop-ups, or use email.');
+  if(/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return tr('Wrong email or password. New here? Tap New account.');
+  if(/email-already-in-use/.test(c)) return tr('That email already has an account. Tap Sign in.');
+  if(/invalid-email|missing-email/.test(c)) return tr('That email doesn’t look right.');
+  if(/weak-password/.test(c)) return tr('Use a password of at least 6 characters.');
+  if(/network/.test(c)) return tr('No internet. Try again when you’re online.');
+  if(/unauthorized-domain|operation-not-allowed/.test(c)) return tr('Sign-in isn’t switched on for this address yet.');
+  return tr('Couldn’t sign in.')+(c?' ('+c+')':''); }
+function openAccount(why){
+  if(cloud.user){ const u=cloud.user;
+    openSheet(tr('Sync'),`<p class="hint" style="margin-bottom:10px">${tr('Signed in as {0}','<b>'+esc(u.email||u.displayName||'')+'</b>')}</p>
+      <p class="hint" style="margin-bottom:14px">${tr('Your gigs, lyrics, keys and notes are the same on every device where you sign in. Changes made offline go up when you are back online.')}</p>
+      <div class="acts"><button class="tbtn" id="aOut">${tr('Sign out')}</button></div>`,()=>{
+      $('aOut').onclick=()=>{ store.set('cloud',false); cloud.fb.auth.signOut(cloud.auth); closeSheetQuiet(); toast(tr('Signed out. Your gigs stay on this device.')); }; });
+    return; }
+  openSheet(tr('Sync'),`<div class="form">${why?`<p class="hint"><b style="color:var(--fg)">${esc(why)}</b></p>`:''}
+    <p class="hint">${tr('Sign in on each phone, tablet and computer. Your gigs stay the same everywhere, and your band can join a gig with a link.')}</p>
+    <div class="acts"><button class="tbtn primary" id="aGoogle" disabled>${tr('Sign in with Google')}</button></div>
+    <p class="hint">${tr('Or with email')}</p>
+    <label>${tr('Email')}<input id="aEmail" type="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <label>${tr('Password')}<input id="aPass" type="password" autocomplete="current-password"></label>
+    <div class="acts"><button class="tbtn" id="aIn" disabled>${tr('Sign in')}</button><button class="tbtn" id="aNew" disabled>${tr('New account')}</button><button class="linkbtn" id="aForgot">${tr('Forgot password?')}</button></div>
+    <p class="hint" id="aMsg" role="status"></p></div>`,()=>{
+    const msg=t=>{ if($('aMsg')) $('aMsg').textContent=t; }, A=()=>cloud.fb.auth;
+    cloudLoad().then(()=>['aGoogle','aIn','aNew'].forEach(i=>{ if($(i)) $(i).disabled=false; }),()=>msg(tr('No internet. Try again when you’re online.')));
+    const done=()=>{ closeSheetQuiet(); toast(tr('Signed in. Syncing…')); }, fail=e=>msg(authMsg(e)), ep=()=>[$('aEmail').value.trim(),$('aPass').value];
+    $('aGoogle').onclick=()=>A().signInWithPopup(cloud.auth,new (A().GoogleAuthProvider)()).then(done,fail);
+    $('aIn').onclick=()=>{ const [e,p]=ep(); if(!e||!p){ msg(tr('Type your email and password.')); return; } A().signInWithEmailAndPassword(cloud.auth,e,p).then(done,fail); };
+    $('aNew').onclick=()=>{ const [e,p]=ep(); if(!e||p.length<6){ msg(tr('Type your email and a password of at least 6 characters.')); return; } A().createUserWithEmailAndPassword(cloud.auth,e,p).then(done,fail); };
+    $('aForgot').onclick=()=>{ const e=$('aEmail').value.trim(); if(!e){ msg(tr('Type your email first.')); return; }
+      cloudLoad().then(()=>A().sendPasswordResetEmail(cloud.auth,e)).then(()=>msg(tr('Check your email for a link to set a new password.')),fail); };
+  });
+}
+// ↗ Send, top part: the live link for your band
+function bandHTML(gigId){
+  if(!cloud.user) return `<p class="hint" style="margin-bottom:6px">${tr('Tip: sign in under Aa → Sync and you can send your band a link instead. They join once and always have your latest version.')}</p>`;
+  const r=cloud.roles[gigId]; if(!r) return '';
+  const who=u=>esc((r.r.people||{})[u]||tr('Someone'));
+  if(!r.owner) return `<p class="hint" style="margin-bottom:6px">${tr('You joined this gig. It updates by itself when {0} changes it.','<b>'+(r.r.people&&r.r.people[r.r.owner]?who(r.r.owner):tr('the owner'))+'</b>')}</p>`;
+  const others=(r.r.memberIds||[]).filter(u=>u!==cloud.user.uid);
+  return `<div class="band"><div class="pickhead">${tr('Band (live link)')}</div>
+    <p class="hint">${tr('Everyone with the link sees this gig and gets every change. Only people you mark can edit it.')}</p>
+    <div class="acts"><button class="tbtn primary" id="bLink">${tr('Send invite link')}</button></div>
+    ${others.map(u=>`<div class="pk"><span><b>${who(u)}</b></span>${segHTML('ed_'+u,[['view',tr('Can view')],['edit',tr('Can edit')]],(r.r.editors||[]).includes(u)?'edit':'view')}<button class="tool" data-rm="${u}" aria-label="${tr('Remove')}">✕</button></div>`).join('')}
+    <div class="pickhead" style="margin-top:10px">${tr('Or send a file')}</div></div>`;
+}
+function wireBand(gigId){
+  const r=cloud.roles[gigId]; if(!r||!r.owner||!$('bLink')) return; const {fs}=cloud.fb, ref=fs.doc(cloud.db,'gigs',r.d);
+  $('bLink').onclick=()=>{ const g=gigById(gigId), url=location.origin+location.pathname+'#join='+r.d+'.'+cloud.roles[gigId].r.invite, text=tr('Join “{0}” in Chords Sheet',g.name);
+    if(navigator.share) navigator.share({title:g.name,text,url}).catch(()=>{});
+    else if(navigator.clipboard) navigator.clipboard.writeText(url).then(()=>toast(tr('Link copied')),()=>prompt(tr('Copy this link'),url));
+    else prompt(tr('Copy this link'),url); };
+  $('sheetHost').querySelectorAll('.band .seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.onclick=()=>{ const u=sg.id.slice(3);
+    fs.updateDoc(ref,{editors:b.dataset.v==='edit'?fs.arrayUnion(u):fs.arrayRemove(u)}).catch(cloudErr);
+    sg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); }));
+  $('sheetHost').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ const u=b.dataset.rm;
+    if(!confirm(tr('Remove {0} from this gig?',(r.r.people||{})[u]||tr('Someone')))) return;
+    fs.updateDoc(ref,{memberIds:fs.arrayRemove(u),editors:fs.arrayRemove(u),['people.'+u]:fs.deleteField(),invite:secret()}).catch(cloudErr);   // new invite: the old link stops working
+    b.closest('.pk').remove(); toast(tr('Removed. The old link no longer works.')); });
+}
+
 /* ---------- navigation ---------- */
 function go(i){ location.hash = i<0 ? LIST.id : LIST.id+'-'+(i+1); }
 function route(){
   const code=shareCodeOf(location.hash); if(code){ receiveLink(code); return; }
+  const jm=location.hash.match(/^#join=([A-Za-z0-9_]+)\.([A-Za-z0-9]+)$/);
+  if(jm){ history.replaceState(null,'',location.pathname+location.search); route(); joinLink(jm[1],jm[2]); return; }
   closeSheetQuiet(); editing=null;
   const em=location.hash.match(/^#edit-([a-z0-9]+)$/);
-  if(em&&gigById(em[1])){ useList(em[1]); showGigEditor(em[1]); return; }
+  if(em&&gigById(em[1])&&canEdit(em[1])){ useList(em[1]); showGigEditor(em[1]); return; }
   const m=location.hash.match(/^#([a-z0-9]+)(?:-(\d+))?$/);
   useList(m&&LISTS.some(l=>l.id===m[1]) ? m[1] : store.get('list',LISTS[0].id));
   const i=m&&m[2]?+m[2]-1:-1;
@@ -1286,6 +1515,7 @@ document.addEventListener('keydown',e=>{
 
 migrateLyricsApp();
 route();
+if(store.get('cloud',false)) cloudLoad().catch(()=>{});   // offline: the app still works from this device
 // Works offline once opened (GitHub Pages only)
 if('serviceWorker' in navigator&&location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>

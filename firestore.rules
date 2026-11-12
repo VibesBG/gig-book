@@ -1,0 +1,47 @@
+rules_version = '2';
+// Chords Sheet sync. Paste into Firebase console › Firestore › Rules, then Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function me() { return request.auth.uid; }
+
+    // A gig: its members can read it; the owner and the members marked "Can edit" can change it.
+    match /gigs/{gig} {
+      function was() { return resource.data; }
+      function now() { return request.resource.data; }
+      function changes(keys) { return now().diff(was()).affectedKeys().hasOnly(keys); }
+      function member() { return me() in was().memberIds; }
+      function owner() { return me() == was().owner; }
+
+      allow read: if request.auth != null && member();
+
+      allow create: if request.auth != null
+        && now().owner == me() && now().memberIds == [me()] && now().editors == []
+        && now().people.keys().hasOnly([me()])
+        && now().invite is string && now().invite.size() >= 16
+        && now().data is string && now().data.size() < 1000000;
+
+      allow update: if request.auth != null && (
+        // the owner: anything except giving the gig away or leaving it
+        (owner() && now().owner == was().owner && me() in now().memberIds)
+        // a member marked "Can edit": the songs and the name only
+        || (member() && me() in was().editors && changes(['name', 'data', 'rev', 'updated', 'by']))
+        // a member leaving
+        || (member() && !owner() && changes(['memberIds', 'editors'])
+            && now().memberIds == was().memberIds.removeAll([me()])
+            && now().editors == was().editors.removeAll([me()]))
+        // joining with the invite link: add only yourself, as a viewer
+        || (!member() && changes(['memberIds', 'joinWith', 'people'])
+            && now().joinWith == was().invite
+            && now().memberIds == was().memberIds.concat([me()])
+            && now().people.diff(was().people).affectedKeys().hasOnly([me()]))
+      );
+
+      allow delete: if request.auth != null && owner();
+    }
+
+    // Your own key, capo, tempo, notes and ✓ marks: only you.
+    match /users/{uid}/{rest=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
