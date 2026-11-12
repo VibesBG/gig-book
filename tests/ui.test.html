@@ -176,19 +176,20 @@ run([
  ['SC file keeps valid beats only', async()=>{ const d=await open('',{'ag-seenWelcome':true}); const v=frame.contentWindow.validateGigFile;
    const one=b=>v({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'G',beats:b,sections:[]}]}]}]}).gigs[0].sets[0].songs[0].beats;
    ok('3 kept', one(3)===3); ok('junk dropped', one('<b>')===undefined); }],
- ['SH send builds a link with my key change, not my notes', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-seenWelcome':true,'ag-song:mybar:Tune A':{t:2,note:'secret'}});
+ ['SH send makes a file with my key change, not my notes', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-seenWelcome':true,'ag-song:mybar:Tune A':{t:2,note:'secret'}});
+   const w=frame.contentWindow; let got=null; w.downloadJSON=(name,obj)=>{ got={name,obj}; };
    d.querySelector('[data-act="sendgig"]').click(); await sleep(150);
-   ok('one song listed', d.querySelectorAll('.pk input').length===1);
-   d.getElementById('sName').value='Дарин'; d.getElementById('sName').dispatchEvent(new Event('change')); await sleep(300);
-   d.getElementById('sLink').click(); await sleep(150);
-   const msg=d.getElementById('sMsg'); ok('message shown', !!msg); const w=frame.contentWindow;
-   const o=await w.unpackShare(msg.value.split('#get=')[1]);
-   ok('gig name', o.gigs[0].name==='Friday Bar', o.gigs[0].name); ok('from', o.from==='Дарин', o.from);
-   ok('key travels', o.state['Tune A']&&o.state['Tune A'].t===2, o.state); ok('notes stay', !JSON.stringify(o).includes('secret'));
-   ok('name remembered', JSON.parse(localStorage.getItem('ag-prefs')).name==='Дарин'); }],
+   ok('one song listed', d.querySelectorAll('.pk input').length===1); ok('no link button', !d.getElementById('sLink'));
+   d.getElementById('sName').value='Дарин'; d.getElementById('sFile').click(); await sleep(100);
+   ok('file made', !!got); const o=got&&got.obj;
+   ok('file name', got&&got.name==='Friday Bar.setlist.json', got&&got.name); ok('gig name', o&&o.gigs[0].name==='Friday Bar'); ok('from', o&&o.from==='Дарин');
+   ok('key travels', o&&o.state['Tune A']&&o.state['Tune A'].t===2, o&&o.state); ok('notes stay', !JSON.stringify(o).includes('secret'));
+   ok('name remembered', JSON.parse(localStorage.getItem('ag-prefs')).name==='Дарин');
+   ok('loads back as a setlist file', w.validateGigFile(JSON.parse(JSON.stringify(o))).ok); }],
  ['SH none ticked refuses to send', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-seenWelcome':true});
-   d.querySelector('[data-act="sendgig"]').click(); await sleep(150); d.getElementById('sNone').click(); await sleep(150);
-   d.getElementById('sLink').click(); await sleep(100); ok('no message', !d.getElementById('sMsg')); }],
+   const w=frame.contentWindow; let got=null; w.downloadJSON=()=>{ got=true; };
+   d.querySelector('[data-act="sendgig"]').click(); await sleep(150); d.getElementById('sNone').click();
+   d.getElementById('sFile').click(); await sleep(100); ok('no file', !got); }],
  ['SH opening a link adds the gig with the sender key', async()=>{ await open('',{'ag-seenWelcome':true}); const w=frame.contentWindow;
    const code=await w.packShare({kind:'setlists-gigs',v:1,from:'Дарин',gigs:BAR,state:{'Tune A':{t:2,bpm:120}}});
    const d=await open('#get='+code,{'ag-seenWelcome':true}); await sleep(200);

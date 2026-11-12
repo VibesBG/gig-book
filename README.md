@@ -31,13 +31,13 @@ C | G | D | D
 - Metronome with count-in and tap tempo
 - Auto-scroll, swipe between songs, and works with a Bluetooth page-turner pedal
 - Notes per song, mark songs as played, search across gigs
-- **↗ Send** a gig to a bandmate as a link (Viber, WhatsApp, Messenger): pick the songs, and your key, capo and tempo go with them. Send it again to update their copy
+- **↗ Send** a gig to a bandmate as a file (Viber, WhatsApp, Messenger): pick the songs, and your key, capo and tempo go with them. Send it again to update their copy
 - Stage (dark) and Daylight looks, adjustable text size, keeps the screen on
 - English and Bulgarian
 
 ## Your data
 
-Everything you add stays on your own device. Nothing is sent anywhere. A **↗ Send** link carries the gig inside the link itself (after the `#`), so it goes straight from your phone to theirs and never through this website. Use **Save gig to file** to keep a backup, and **Load a file** to open one.
+Everything you add stays on your own device. Nothing is sent anywhere. Use **↗ Send** to send a gig to a bandmate, **Save gig to file** to keep a backup, and **Load a file** to open one.
 
 ## For developers
 
