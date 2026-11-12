@@ -281,5 +281,15 @@ run([
    const x=JSON.parse(localStorage.getItem('ag-gigs'))[0].sets[0].songs[0]; ok('lyrics in', x.lyrics==='words here', x); }],
  ['M5 coming from the old lyrics address opens lyrics', async()=>{ localStorage.clear(); frame.src='../index.html?view=lyrics#example-3'; await sleep(400);
    ok('lyrics first', !!frame.contentDocument.querySelector('.lyrics')); }],
+ ['M6 a lyrics-only song borrows chords from the same song in another gig; chorus keeps the lyrics font', async()=>{
+   const gigs=[{id:'a',name:'Main',sets:[{name:'',songs:[{title:'Tune A',key:'G',capo:'2',sections:[{l:'V',c:['│ G │ D │']}],bpm:90}]}]},
+               {id:'b',name:'Short',sets:[{name:'',songs:[{title:'tune a',key:'',capo:'',sections:[],lyrics:'one\ntwo\n\nhook\nhook2\n\nthree\n\nhook\nhook2'}]}]}];
+   const d=await open('#b-1',{'ag-gigs':gigs,'ag-seenWelcome':true,'ag-prefs':{view:'chords'}}); await sleep(100);
+   ok('shows borrowed chords', !!d.querySelector('.sec .ch')&&/Chords from Main/.test(d.querySelector('.sub').textContent), d.querySelector('.sub')&&d.querySelector('.sub').textContent);
+   ok('borrowed capo and tempo', /2/.test(d.querySelector('[data-act="capo+"]').parentNode.textContent)&&/90/.test(d.getElementById('scrollSpd').textContent));
+   ok('not saved into the gig', JSON.parse(localStorage.getItem('ag-gigs'))[1].sets[0].songs[0].sections.length===0);
+   d.querySelector('[data-act="view"][data-v="lyrics"]').click(); await sleep(80);
+   const c=d.querySelector('.lyrics .st.cho'); ok('chorus shaded', !!c);
+   ok('chorus not in chord font', c&&!c.querySelector('.rep')&&getComputedStyle(c).fontFamily===getComputedStyle(d.querySelector('.lyrics .st')).fontFamily&&!c.classList.contains('rep')); }],
 ]);
 </script>

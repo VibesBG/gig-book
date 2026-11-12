@@ -161,7 +161,7 @@ button,input,textarea{font:inherit;color:inherit}
 .lyrics{font-size:calc(22px*var(--scale));line-height:1.5;max-width:46ch;overflow-wrap:anywhere;margin-top:6px}
 .st{margin:0 0 .9em;padding:.15em .6em;border-radius:10px}
 .st .l{display:block;padding-left:1.1em;text-indent:-1.1em;min-height:1em}
-.st.rep{background:var(--accent-soft)}
+.st.cho{background:var(--accent-soft)}
 .st .lbl{display:block;font-family:var(--f-display);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:.7em;color:var(--muted);margin-bottom:.15em}
 .vsw{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
 .vsw button{height:50px;padding:0 14px;border:0;background:transparent;font-weight:600;cursor:pointer}
@@ -273,7 +273,7 @@ const EXAMPLE=Object.assign(JSON.parse($('setlist').textContent)[0],{ex:true});
 Object.defineProperty(EXAMPLE,'name',{get:()=>tr('Example gig')});
 let GIGS=[], LISTS=[];
 const loadGigs=()=>sanitizeGigs(store.get('gigs',[]));
-const plainGig=g=>({id:g.id,name:g.name,sets:g.sets.map(s=>({name:s.name,songs:s.songs.map(x=>{const y=Object.assign({},x);delete y.set;delete y.idx;delete y.list;delete y.no;return y})}))});
+const plainGig=g=>({id:g.id,name:g.name,sets:g.sets.map(s=>({name:s.name,songs:s.songs.map(x=>{const y=Object.assign({},x);delete y.set;delete y.idx;delete y.list;delete y.no;delete y.twin;return y})}))});
 function saveGigs(gigs){ const before=cloud.user&&!cloud.quiet?store.get('gigs',[]):null, ok=store.set('gigs',gigs.map(plainGig)); if(ok){ GIGS=gigs; if(before) cloudPushDiff(before); } return ok; }
 function rebuild(){
   GIGS=loadGigs();
@@ -285,11 +285,15 @@ function rebuild(){
       x.no=s.name==='Bonus'?'B'+(L.songs.filter(y=>y.set==='Bonus').length+1):String(L.songs.filter(y=>y.set!=='Bonus').length+1);
       L.songs.push(x);} }));
   });
+  // a song with only lyrics shows the chords of the same song in another gig (not saved into it)
+  const withChords={}; LISTS.forEach(L=>L.songs.forEach(x=>{ const k=songKey2(x.title); if(x.sections.length&&!withChords[k]) withChords[k]=x; }));
+  LISTS.forEach(L=>L.songs.forEach(x=>{ delete x.twin; if(!x.sections.length){ const t=withChords[songKey2(x.title)]; if(t) x.twin=t; } }));
 }
+const C=s=>s.sections.length||!s.twin?s:s.twin;   // where a song's chords, key, capo and beats come from
 let LIST=null, SETS=[], SONGS=[];
 function useList(id){ LIST=LISTS.find(l=>l.id===id)||LISTS[0]; SETS=LIST.sets; SONGS=LIST.songs; store.set('list',LIST.id); }
 const songKey=s=>'song:'+s.list.id+':'+s.title;
-const sstate=s=>Object.assign({t:0,c:+s.capo||0,bpm:null,played:false,note:''},store.get(songKey(s),{}));
+const sstate=s=>Object.assign({t:0,c:+C(s).capo||0,bpm:null,played:false,note:''},store.get(songKey(s),{}));
 let warned=0; const warnSave=()=>{ if(Date.now()-warned>5000){ warned=Date.now(); toast(tr(SAVE_FAIL)); } };
 const changed=()=>store.set('dirty',Date.now());   // something not in a file yet
 const saveS=(s,patch)=>{const raw=Object.assign(store.get(songKey(s),{}),patch);if(!store.set(songKey(s),raw)) warnSave(); else if(Object.keys(patch).some(k=>k!=='played')) changed(); return sstate(s)};
@@ -360,7 +364,7 @@ const BG={
  'Remove {0} from this gig?':'Да махна ли {0} от участието?','Removed. The old link no longer works.':'Махнат. Старият линк вече не работи.',
  'Leave gig':'Напусни участието','Delete “{0}” everywhere? It goes from all your devices and from your band’s.':'Да изтрия ли „{0}“ навсякъде? Изчезва от всичките ти устройства и от тези на групата.',
  'Leave “{0}”? It goes from all your devices.':'Да напусна ли „{0}“? Изчезва от всичките ти устройства.',
- 'Open songs in':'Отваряй песните в','Singers: pick Lyrics':'Певци: изберете Текст','Lyrics loaded':'Текстовете са заредени','Your lyrics are here now too':'Текстовете ти вече са и тук'
+ 'Chords from {0}':'Акорди от {0}','Open songs in':'Отваряй песните в','Singers: pick Lyrics':'Певци: изберете Текст','Lyrics loaded':'Текстовете са заредени','Your lyrics are here now too':'Текстовете ти вече са и тук'
 };
 function tr(s,...a){ let r=(prefs.lang==='bg'&&BG[s])||s; a.forEach((v,i)=>{ r=r.split('{'+i+'}').join(v); }); return r; }
 const songsN=n=>n===1?tr('1 song'):tr('{0} songs',n);
@@ -501,12 +505,12 @@ const chordsIn=text=>(text.match(/[A-G][#b]?[^\s\-→.]*/g)||[]).map(c=>c.replac
 /* ---------- views ---------- */
 let cur=-1, query='';
 const view=$('view');
-function bpmOf(s){ const st=sstate(s); return Math.round(+st.bpm||+s.bpm||0)||null; }
+function bpmOf(s){ const st=sstate(s); return Math.round(+st.bpm||+s.bpm||+C(s).bpm||0)||null; }
 
 function songRow(x,showGig,snip){
   const st=sstate(x), last=store.get('last-'+x.list.id,-1);
-  const shift=st.t-(st.c-(+x.capo||0));
-  const k=keyName(x.key,shift), moved=shift!==0||st.c!==(+x.capo||0);
+  const shift=st.t-(st.c-(+C(x).capo||0));
+  const k=keyName(C(x).key,shift), moved=shift!==0||st.c!==(+C(x).capo||0);
   return `<button class="row${x.list===LIST&&x.idx===last?' current':''}${st.played?' played':''}" data-l="${x.list.id}" data-i="${x.idx}">
     <span class="n">${st.played?'✓':x.no}</span><span class="t">${esc(x.title)}${snip?`<small>${snip}</small>`:showGig?`<small>${esc(x.list.name)} · ${esc(x.set)}</small>`:x.artist?`<small>${esc(x.artist)}</small>`:''}</span>
     <span class="pills">${k?`<span class="pill${moved?' moved':''}">${esc(k)}</span>`:''}${st.c?`<span class="pill capo">${tr('Capo {0}',st.c)}</span>`:''}</span></button>`;
@@ -560,15 +564,15 @@ function renderListBody(){
 
 let forceView=null, curMode='chords';
 // What a song opens in: your choice (Aa or the switch), unless the song only has the other one.
-function modeOf(s){ const hasL=!!s.lyrics, hasC=s.sections.length>0, want=forceView||prefs.view||'chords';
+function modeOf(s){ const hasL=!!s.lyrics, hasC=C(s).sections.length>0, want=forceView||prefs.view||'chords';
   if(want==='lyrics') return hasL||!hasC?'lyrics':'chords'; return hasC||!hasL?'chords':'lyrics'; }
-const lyricsHTML=text=>parseLyrics(text).map(s=>`<p class="st${s.rep?' rep':''}">${s.label?`<span class="lbl">${esc(s.label)}</span>`:''}${s.lines.map(l=>`<span class="l">${esc(l)}</span>`).join('')}</p>`).join('');
+const lyricsHTML=text=>parseLyrics(text).map(s=>`<p class="st${s.rep?' cho':''}">${s.label?`<span class="lbl">${esc(s.label)}</span>`:''}${s.lines.map(l=>`<span class="l">${esc(l)}</span>`).join('')}</p>`).join('');
 function showSong(i){
   if(cur!==i){ stopScroll(); playLine=0; forceView=null; }
   cur=i; store.set('last-'+LIST.id,i);
-  const s=SONGS[i], st=sstate(s), c0=+s.capo||0;
+  const s=SONGS[i], k=C(s), st=sstate(s), c0=+k.capo||0;
   const shift=st.t-(st.c-c0);
-  const shapeKey=keyName(s.key,shift), soundKey=keyName(s.key,c0+st.t), flats=useFlats(shapeKey);
+  const shapeKey=keyName(k.key,shift), soundKey=keyName(k.key,c0+st.t), flats=useFlats(shapeKey);
   const bpm=bpmOf(s), mode=curMode=modeOf(s);
   const vsw=`<div class="vsw" role="group" aria-label="${tr('Show')}"><button data-act="view" data-v="chords" aria-pressed="${mode==='chords'}">${tr('Chords')}</button><button data-act="view" data-v="lyrics" aria-pressed="${mode==='lyrics'}">${tr('Lyrics')}</button></div>`;
   $('homeBtn').hidden=false; $('dock').hidden=false;
@@ -584,16 +588,16 @@ function showSong(i){
      <button class="tbtn" data-act="played" aria-pressed="${st.played}">${st.played?tr('✓ Played'):tr('Mark played')}</button>
      ${LIST.ex||!canEdit(LIST.id)?'':`<button class="tbtn" data-act="edit">${tr('✎ Edit')}</button>`}`}
    </div>
-   <p class="sub">${s.artist?`<span><b>${esc(s.artist)}</b></span>`:''}${mode==='chords'&&st.c?`<span>${tr('Sounds in')} <b>${esc(soundKey)}</b></span>`:''}${mode==='chords'&&(st.t||st.c!==c0)?`<span>${tr('Original:')} <b>${esc(s.key)}${c0?' '+tr('capo')+' '+c0:''}</b> <button class="tbtn" style="height:30px;padding:0 10px" data-act="reset">${tr('Reset')}</button></span>`:''}<span>${esc(LIST.name)} · ${esc(s.set)} · ${tr('{0} of {1}',s.idx+1,SONGS.length)}</span></p>${s.tip?`<p class="tip">${esc(s.tip[prefs.lang]||s.tip.en||'')}</p>`:''}`;
+   <p class="sub">${s.artist?`<span><b>${esc(s.artist)}</b></span>`:''}${mode==='chords'&&st.c?`<span>${tr('Sounds in')} <b>${esc(soundKey)}</b></span>`:''}${mode==='chords'&&(st.t||st.c!==c0)?`<span>${tr('Original:')} <b>${esc(k.key)}${c0?' '+tr('capo')+' '+c0:''}</b> <button class="tbtn" style="height:30px;padding:0 10px" data-act="reset">${tr('Reset')}</button></span>`:''}<span>${esc(LIST.name)} · ${esc(s.set)} · ${tr('{0} of {1}',s.idx+1,SONGS.length)}</span>${mode==='chords'&&k!==s?`<span>${tr('Chords from {0}',esc(k.list.name))}</span>`:''}</p>${s.tip?`<p class="tip">${esc(s.tip[prefs.lang]||s.tip.en||'')}</p>`:''}`;
   if(mode==='lyrics') h+=s.lyrics?`<div class="lyrics">${lyricsHTML(s.lyrics)}</div>`:`<p class="empty">${LIST.ex?'':tr('No lyrics yet. Tap ✎ Edit to add them.')}</p>`;
-  else s.sections.forEach(sec=>{
+  else k.sections.forEach(sec=>{
     h+=`<div class="sec${sec.l?'':' cont'}"><div class="sec-l">${esc(sec.l)}</div><div class="sec-b">`+
       sec.c.map(l=>'<div class="ln">'+tokens(l).map(t=>{
         if(t.k==='ch'){const v=xform(t.v,shift,flats);return `<span class="ch" role="button" tabindex="0" data-ch="${esc(v)}">${esc(v)}</span>`}
         return `<span class="${t.k==='rep'?'rep':t.k==='loud'?'note loud':'note'}">${esc(t.v)}</span>`;
       }).join('')+'</div>').join('')+'</div></div>';
   });
-  if(mode==='chords'&&!s.sections.length) h+=`<p class="empty">${LIST.ex?'':tr('No chords yet. Tap ✎ Edit to add them.')}</p>`;
+  if(mode==='chords'&&!k.sections.length) h+=`<p class="empty">${LIST.ex?'':tr('No chords yet. Tap ✎ Edit to add them.')}</p>`;
   h+=`<div class="mynote"><label for="mynote">${tr('My notes')}</label><textarea id="mynote" placeholder="${tr('Cues, who starts, lyrics you forget… (saved on this device)')}">${esc(st.note)}</textarea></div></article>`;
   view.innerHTML=h;
   $('mynote').oninput=e=>saveS(s,{note:e.target.value});
@@ -615,7 +619,7 @@ view.addEventListener('click',e=>{
   const ln=e.target.closest('.ln');   // tap a line: start from there (or jump there while playing)
   if(ln){ const i=playLines().indexOf(ln); playLine=i; if(scrolling){ clearTimeout(playTimer); playFrom(i); } else markLine(i,false); return; }
   const b=e.target.closest('[data-act]'); if(!b) return;
-  const st=sstate(s), c0=+s.capo||0;
+  const st=sstate(s), c0=+C(s).capo||0;
   switch(b.dataset.act){
     case 'key-': saveS(s,{t:st.t-1}); rerender(); break;
     case 'key+': saveS(s,{t:st.t+1}); rerender(); break;
@@ -741,11 +745,11 @@ function startScroll(){
   if(metro.on) metroStop();
   metro.bpm=bpm; metroStart(true); metro.byScroll=true;   // four clicks, then the click keeps going with the song
   glideTo(lines[playLine]);
-  playTimer=setTimeout(()=>playFrom(playLine),(SONGS[cur].beats||4)*60000/bpm);   // …then go
+  playTimer=setTimeout(()=>playFrom(playLine),(C(SONGS[cur]).beats||4)*60000/bpm);   // …then go
 }
 function playFrom(i){
   if(!scrolling||cur<0) return;
-  const s=SONGS[cur], tl=songTimeline(s.sections,s.beats||4);
+  const s=C(SONGS[cur]), tl=songTimeline(s.sections,s.beats||4);
   if(i>=tl.length){ stopScroll(); playLine=0; markLine(-1); toast(tr('End of song')); return; }
   playLine=i; markLine(i,true);
   playTimer=setTimeout(()=>playFrom(i+1),tl[i].beats*60000/songBpm());   // tempo nudges apply from the next line
@@ -790,7 +794,7 @@ function metroStart(countIn){ metro.byScroll=false;
   try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(e){}   // iPhone: click even with the silent switch on
   try{ metro.ctx=metro.ctx||new (window.AudioContext||window.webkitAudioContext)(); metro.ctx.resume(); }catch(e){ toast(tr('Sound isn’t available here')); return; }
   clearInterval(metro.timer);
-  metro.on=true; metro.song=SONGS[cur]; metro.beat=0; metro.per=cur>=0&&SONGS[cur].beats||4; metro.left=countIn?metro.per:-1; metro.next=metro.ctx.currentTime+.06;
+  metro.on=true; metro.song=SONGS[cur]; metro.beat=0; metro.per=cur>=0&&C(SONGS[cur]).beats||4; metro.left=countIn?metro.per:-1; metro.next=metro.ctx.currentTime+.06;
   metro.timer=setInterval(schedule,25); schedule(); syncMetroUI();
 }
 function metroStop(){ metro.on=false; clearInterval(metro.timer); $('beat').hidden=true; syncMetroUI(); }
@@ -823,7 +827,7 @@ let editing=null;
 const gigById=id=>GIGS.find(g=>g.id===id);
 const SAVE_FAIL='Couldn’t save on this device. Is storage full or private browsing on?';
 function commit(gigs){ if(!saveGigs(gigs)){ toast(tr(SAVE_FAIL)); return false; } changed(); rebuild(); return true; }
-const plainSong=x=>{ const y=Object.assign({},x); delete y.set; delete y.idx; delete y.list; delete y.no; return y; };
+const plainSong=x=>{ const y=Object.assign({},x); delete y.set; delete y.idx; delete y.list; delete y.no; delete y.twin; return y; };
 function newGig(){
   const g={id:newId(Date.now()),name:tr('My gig'),sets:[{name:'',songs:[]}]};
   if(commit(GIGS.concat([g]))) location.hash='edit-'+g.id;
