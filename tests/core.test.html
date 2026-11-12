@@ -82,6 +82,12 @@ eq('same song written two ways', ()=>[songKey2("I don't want to miss a thing")==
 eq('lyrics merge keeps mine unless replacing', ()=>{ const g=[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'',capo:'',sections:[],lyrics:'mine'}]}]}], p={gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{t:'X',a:'',x:'k'}]}]}],texts:{k:'theirs'}};
   return [mergeLyricsPack(g,p)[0].sets[0].songs[0].lyrics, mergeLyricsPack(g,p,null,true)[0].sets[0].songs[0].lyrics]; }, ['mine','theirs']);
 eq('lyrics survive a file round trip', ()=>validateGigFile(makeGigFile([{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'',capo:'',sections:[],lyrics:'la\nla'}]}]}],'d')).gigs[0].sets[0].songs[0].lyrics, 'la\nla');
+eq('fillGaps brings back chords, lyrics and songs, never overwrites', ()=>{
+  const cur=[{id:'a',name:'A',sets:[{name:'S1',songs:[{title:'Valerie',key:'',capo:'',sections:[],lyrics:'cloud words'},{title:'Kept',key:'G',capo:'',sections:[{l:'',c:['G']}]}]}]}];
+  const old=[{id:'a',name:'A',sets:[{name:'S1',songs:[{title:'valerie',key:'Eb',capo:'1',sections:[{l:'V',c:['Eb']}],lyrics:'old words',bpm:120},{title:'Kept',key:'C',capo:'',sections:[{l:'',c:['C']}]},{title:'Only here',key:'D',capo:'',sections:[]}]}]},{id:'b',name:'B',sets:[]}];
+  const o=fillGaps(cur,old), v=o[0].sets[0].songs[0], k=o[0].sets[0].songs[1];
+  return [v.key,v.capo,v.sections[0].c[0],v.lyrics,v.bpm,k.key,o[0].sets[0].songs.map(x=>x.title),o.map(g=>g.id),cur[0].sets[0].songs[0].sections.length];
+}, ['Eb','1','Eb','cloud words',120,'G',['Valerie','Kept','Only here'],['a','b'],0]);
 }
 try{T()}catch(e){fails.push('ERROR: '+e.message)}
 A().catch(e=>fails.push('ERROR: '+e.message)).then(()=>{ document.body.textContent=fails.length?fails.join('\n'):'PASS '+n; });

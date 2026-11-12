@@ -59,6 +59,17 @@ try{
   ok('new device gets the gig',!!await until(()=>E('GIGS').some(x=>x.id==='mybar'&&x.name==='Saturday Bar')));
   ok('new device gets the song settings',!!await until(()=>JSON.parse(localStorage.getItem('ag-song:mybar:Tune B')||'{}').t===-1));
 
+  // ---- device 3 had chords typed in that the cloud doesn't have: they come back after signing in
+  localStorage.clear(); localStorage.setItem('ag-seenWelcome','true'); localStorage.setItem('ag-cloud','true');
+  const mine=JSON.parse(JSON.stringify(BAR)); mine[0].sets[0].songs[1].sections=[{l:'Verse',c:['C','F']}]; mine[0].sets[0].songs.push({title:'Phone Only',key:'E',capo:'',sections:[{l:'',c:['E']}]});
+  localStorage.setItem('ag-gigs',JSON.stringify(mine)); localStorage.setItem('ag-song:mybar:Phone Only',JSON.stringify({t:1,note:'phone note'}));
+  await load('');
+  const back=await until(async()=>{ const d=JSON.parse((await fs.getDoc(ref)).data().data); const b=d.sets.flatMap(s=>s.songs); return b.find(x=>x.title==='Tune B'&&x.sections.length)&&b.find(x=>x.title==='Phone Only')&&d; },25000);
+  ok('chords only on this device come back and go up',!!back);
+  ok('cloud gig kept its own changes',E('GIGS')[0].name==='Saturday Bar'&&E('GIGS')[0].sets.length===2);
+  ok('notes only on this device kept',!!await until(()=>JSON.parse(localStorage.getItem('ag-song:mybar:Phone Only')||'{}').note==='phone note'));
+  ok('…and uploaded',!!await until(async()=>JSON.parse((await fs.getDoc(fs.doc(me.db,'users',me.uid,'state',me.uid+'_mybar'))).data().songs)['Phone Only']));
+
   // ---- band: join with the link, view only, then can edit
   const doc=(await fs.getDoc(ref)).data();
   const bref=fs.doc(bm.db,'gigs',me.uid+'_mybar');

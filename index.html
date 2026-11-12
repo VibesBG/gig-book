@@ -513,6 +513,22 @@ function mergeLyricsPack(gigs,pack,editOf,replace){
   return out;
 }
 
+// Signing in on a device: the cloud copy of a gig replaces this device's copy. Whatever this device had that
+// the cloud copy lacks comes back on top of it: chords, lyrics, artist, whole songs and whole gigs. Nothing is overwritten.
+function fillGaps(cur,old){
+  const out=clone(cur);
+  old.forEach(o=>{ const g=out.find(x=>x.id===o.id); if(!g){ out.push(clone(o)); return; }
+    const all=[]; g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title!==undefined) all.push(x); }));
+    o.sets.forEach(os=>os.songs.forEach(y=>{ if(y.title===undefined) return;
+      const x=all.find(z=>songKey2(z.title)===songKey2(y.title));
+      if(!x){ if(!g.sets.length) g.sets.push({name:os.name,songs:[]});
+        const set=g.sets.find(s=>s.name===os.name)||g.sets[g.sets.length-1], c=clone(y); set.songs.push(c); all.push(c); return; }
+      if(!(x.sections||[]).length&&(y.sections||[]).length){ x.sections=clone(y.sections); ['key','capo','beats'].forEach(k=>{ if(y[k]!==undefined&&y[k]!=='') x[k]=y[k]; }); if(!x.bpm&&y.bpm) x.bpm=y.bpm; }
+      if(!x.lyrics&&y.lyrics) x.lyrics=y.lyrics;
+      if(!x.artist&&y.artist) x.artist=y.artist; })); });
+  return out;
+}
+
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem('ag-'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
              set(k,v){try{localStorage.setItem('ag-'+k,JSON.stringify(v));if(k.startsWith('song:'))stateTouched(k);return true}catch(e){return false}},
@@ -619,7 +635,7 @@ const BG={
  'Remove {0} from this gig?':'Да махна ли {0} от участието?','Removed. The old link no longer works.':'Махнат. Старият линк вече не работи.',
  'Leave gig':'Напусни участието','Delete “{0}” everywhere? It goes from all your devices and from your band’s.':'Да изтрия ли „{0}“ навсякъде? Изчезва от всичките ти устройства и от тези на групата.',
  'Leave “{0}”? It goes from all your devices.':'Да напусна ли „{0}“? Изчезва от всичките ти устройства.',
- 'Chords from {0}':'Акорди от {0}','Open songs in':'Отваряй песните в','Singers: pick Lyrics':'Певци: изберете Текст','Lyrics loaded':'Текстовете са заредени','Your lyrics are here now too':'Текстовете ти вече са и тук'
+ 'Chords from {0}':'Акорди от {0}','Brought back chords and songs that were only on this device':'Върнах акорди и песни, които бяха само на това устройство','Open songs in':'Отваряй песните в','Singers: pick Lyrics':'Певци: изберете Текст','Lyrics loaded':'Текстовете са заредени','Your lyrics are here now too':'Текстовете ти вече са и тук'
 };
 function tr(s,...a){ let r=(prefs.lang==='bg'&&BG[s])||s; a.forEach((v,i)=>{ r=r.split('{'+i+'}').join(v); }); return r; }
 const songsN=n=>n===1?tr('1 song'):tr('{0} songs',n);
@@ -1306,7 +1322,7 @@ function cloudLoad(){
 function cloudStart(){
   const {fs}=cloud.fb, uid=cloud.user.uid; store.set('cloud',true);
   let m=syncMap();
-  if(m.uid!==uid){ if(GIGS.length) store.set('preSync',GIGS.map(plainGig)); m={uid,g:{},s:{}}; store.set('sync',m); }   // a copy of what was here, just in case
+  if(m.uid!==uid){ if(GIGS.length){ store.set('preSync',GIGS.map(plainGig)); store.set('preSyncDone',false); } m={uid,g:{},s:{}}; store.set('sync',m); }   // a copy of what was here, just in case
   cloudStop();
   cloud.unsub=[
     fs.onSnapshot(fs.query(fs.collection(cloud.db,'gigs'),fs.where('memberIds','array-contains',uid)),{includeMetadataChanges:true},onGigs,listenErr),
@@ -1353,6 +1369,10 @@ function onGigs(snap){
   if(touched){ cloud.quiet=true; saveGigs(gigs); cloud.quiet=false; }
   if(server){
     GIGS.filter(g=>!m.g[g.id]).forEach(g=>{ pushGig(plainGig(g)); pushState(g.id); });   // gigs only on this device go up
+    const pre=store.get('preSync',null);
+    if(pre&&!store.get('preSyncDone',false)){ store.set('preSyncDone',true);   // chords, lyrics or songs only this device had come back (and go up)
+      const now=GIGS.map(plainGig), merged=fillGaps(now,sanitizeGigs(pre).filter(g=>canEdit(g.id)));
+      if(JSON.stringify(merged)!==JSON.stringify(now)&&saveGigs(sanitizeGigs(merged))){ touched=true; merged.forEach(g=>setTimeout(()=>pushState(g.id),1500)); setTimeout(()=>toast(tr('Brought back chords and songs that were only on this device')),600); } }
     if(cloud.lastStates) onStates(cloud.lastStates);
     if(cloud.goTo){ const id=Object.keys(m.g).find(k=>m.g[k].d===cloud.goTo); if(id&&gigById(id)){ cloud.goTo=null; toast(tr('You joined “{0}”',gigById(id).name)); rebuild(); location.hash=id; return; } }
   }
@@ -1394,9 +1414,11 @@ function onStates(snap){
   const m=syncMap(), byDoc={}; Object.keys(m.g).forEach(id=>byDoc[m.g[id].d]=id); let touched=false;
   snap.docs.forEach(doc=>{ const id=byDoc[doc.id], r=doc.data(), g=id&&gigById(id); if(!g||doc.metadata.hasPendingWrites||r.rev===m.s[id]) return;
     let songs; try{ songs=JSON.parse(r.songs)||{}; }catch(e){ return; }
+    const first=m.s[id]===undefined; let kept=false;
     cloud.quiet=true;
-    songTitles(g).forEach(x=>{ const k='song:'+id+':'+x.title, v=cleanState(songs[x.title]); if(v) store.set(k,v); else store.del(k); });
-    cloud.quiet=false; m.s[id]=r.rev; touched=true; });
+    songTitles(g).forEach(x=>{ const k='song:'+id+':'+x.title, v=cleanState(songs[x.title]);
+      if(v) store.set(k,v); else if(first&&store.get(k,null)) kept=true; else store.del(k); });
+    cloud.quiet=false; m.s[id]=r.rev; touched=true; if(kept) setTimeout(()=>pushState(id),1500); });
   if(touched){ store.set('sync',m); cloudRefresh(); }
 }
 // #join=<doc>.<secret>: the link from ↗ Send › Send invite link

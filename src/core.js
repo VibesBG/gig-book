@@ -242,3 +242,19 @@ function mergeLyricsPack(gigs,pack,editOf,replace){
   });
   return out;
 }
+
+// Signing in on a device: the cloud copy of a gig replaces this device's copy. Whatever this device had that
+// the cloud copy lacks comes back on top of it: chords, lyrics, artist, whole songs and whole gigs. Nothing is overwritten.
+function fillGaps(cur,old){
+  const out=clone(cur);
+  old.forEach(o=>{ const g=out.find(x=>x.id===o.id); if(!g){ out.push(clone(o)); return; }
+    const all=[]; g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title!==undefined) all.push(x); }));
+    o.sets.forEach(os=>os.songs.forEach(y=>{ if(y.title===undefined) return;
+      const x=all.find(z=>songKey2(z.title)===songKey2(y.title));
+      if(!x){ if(!g.sets.length) g.sets.push({name:os.name,songs:[]});
+        const set=g.sets.find(s=>s.name===os.name)||g.sets[g.sets.length-1], c=clone(y); set.songs.push(c); all.push(c); return; }
+      if(!(x.sections||[]).length&&(y.sections||[]).length){ x.sections=clone(y.sections); ['key','capo','beats'].forEach(k=>{ if(y[k]!==undefined&&y[k]!=='') x[k]=y[k]; }); if(!x.bpm&&y.bpm) x.bpm=y.bpm; }
+      if(!x.lyrics&&y.lyrics) x.lyrics=y.lyrics;
+      if(!x.artist&&y.artist) x.artist=y.artist; })); });
+  return out;
+}
