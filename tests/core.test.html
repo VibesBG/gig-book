@@ -27,7 +27,8 @@ eq('bpm coerced to number', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[
 eq('bpm numeric kept', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'G',bpm:'96',sections:[]}]}]}]}).gigs[0].sets[0].songs[0].bpm, 96);
 eq('only http sources', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'G',sections:[],sources:['javascript:alert(1)','https://ok.example/x']}]}]}]}).gigs[0].sets[0].songs[0].sources, ['https://ok.example/x']);
 eq('set without songs gets []', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'S'}]}]}).gigs[0].sets[0].songs, []);
-eq('song defaults', ()=>{const x=validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X'}]}]}]}).gigs[0].sets[0].songs[0]; return [x.key,x.capo,x.sections];}, ['C','',[]]);
+eq('song defaults', ()=>{const x=validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X'}]}]}]}).gigs[0].sets[0].songs[0]; return [x.key,x.capo,x.sections];}, ['','',[]]);
+eq('chord song gets key C', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',sections:[{l:'',c:['G']}]}]}]}]}).gigs[0].sets[0].songs[0].key, 'C');
 eq('bad items dropped', ()=>validateGigFile({kind:'setlists-gigs',v:1,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[null,7,{title:''},{break:'B'},{title:'Y',key:'D',sections:[{l:'V',c:['│ D │',5]}]}]}]}]}).gigs[0].sets[0].songs, [{break:'B'},{title:'Y',key:'D',capo:'',sections:[{l:'V',c:['│ D │']}]}]);
 eq('sanitizeGigs on stored data', ()=>sanitizeGigs([{id:'a',name:'A',sets:[{name:'S'}]},{id:'BAD id',name:'x',sets:[]}]).map(g=>g.id+':'+g.sets[0].songs.length), ['a:0']);
 
@@ -69,6 +70,18 @@ const gig={id:'g',name:'G',sets:[{name:'Set 1',songs:[{title:'A'},{break:'Break'
 eq('pick some songs', pickSongs(gig,new Set([0,3])), {id:'g',name:'G',sets:[{name:'Set 1',songs:[{title:'A'}]},{name:'Set 2',songs:[{title:'D'}]}]});
 eq('pick drops empty sets', pickSongs(gig,new Set([2])).sets.map(s=>s.name), ['Set 2']);
 eq('pick all keeps everything', pickSongs(gig,new Set([0,1,2,3])), gig);
+
+eq('lyrics: chorus label shaded', ()=>parseLyrics('Verse\na\nb\n\nПрипев x2\nc').map(s=>[s.label,s.rep]), [['Verse',false],['Припев x2',true]]);
+eq('lyrics merge', ()=>{
+  const gigs=[{id:'rayna',name:'Rayna',sets:[{name:'',songs:[{title:'Бесен',key:'Dm',capo:'',sections:[{l:'',c:['Dm']}]}]}]}];
+  const pack={gigs:[{id:'rayna',name:'R',sets:[{name:'',songs:[{t:'бесен',a:'',x:'a'},{t:'Нова',a:'X',x:'b'}]}]},{id:'azzaro',name:'Azzaro',sets:[{name:'S1',songs:[{t:'Бесен',a:'',x:''}]}]}],texts:{a:'текст',b:'нов текст'}};
+  const o=mergeLyricsPack(gigs,pack,t=>t==='Нова'?'моя поправка':null);
+  return [o[0].sets[0].songs.map(x=>[x.title,x.key,x.lyrics||'']), o[1].id, o[1].sets[0].songs[0].lyrics];
+}, [[['Бесен','Dm','текст'],['Нова','','моя поправка']],'azzaro','текст']);
+eq('same song written two ways', ()=>[songKey2("I don't want to miss a thing")===songKey2("I Don't Wanna Miss a Thing"), songKey2("Knockin’ on heavens door")===songKey2("Knocking On Heaven's Door")], [true,true]);
+eq('lyrics merge keeps mine unless replacing', ()=>{ const g=[{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'',capo:'',sections:[],lyrics:'mine'}]}]}], p={gigs:[{id:'a',name:'A',sets:[{name:'',songs:[{t:'X',a:'',x:'k'}]}]}],texts:{k:'theirs'}};
+  return [mergeLyricsPack(g,p)[0].sets[0].songs[0].lyrics, mergeLyricsPack(g,p,null,true)[0].sets[0].songs[0].lyrics]; }, ['mine','theirs']);
+eq('lyrics survive a file round trip', ()=>validateGigFile(makeGigFile([{id:'a',name:'A',sets:[{name:'',songs:[{title:'X',key:'',capo:'',sections:[],lyrics:'la\nla'}]}]}],'d')).gigs[0].sets[0].songs[0].lyrics, 'la\nla');
 }
 try{T()}catch(e){fails.push('ERROR: '+e.message)}
 A().catch(e=>fails.push('ERROR: '+e.message)).then(()=>{ document.body.textContent=fails.length?fails.join('\n'):'PASS '+n; });

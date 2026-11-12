@@ -95,7 +95,7 @@ run([
    const tip=d.querySelector('.tip'); ok('tip shown', !!tip); }],
  ['T6 example gig content', async()=>{ const d=await open('#example',{'ag-seenWelcome':true});
    const rows=[...d.querySelectorAll('.row .t')].map(x=>x.firstChild.textContent);
-   ok('two songs', rows.join('|')==="Knockin' on Heaven's Door|Let It Be", rows);
+   ok('three songs', rows.join('|')==="Knockin' on Heaven's Door|Let It Be|Amazing Grace", rows);
    ok('break', /Break 15 min/.test(d.querySelector('.brk')&&d.querySelector('.brk').textContent));
    ok('two sets', d.querySelectorAll('.set h2').length===2); }],
  ['T6 example songs demo features', async()=>{ let d=await open('#example-1',{'ag-seenWelcome':true});
@@ -251,5 +251,35 @@ run([
  ['N6 a tap outside the song editor keeps the chart', async()=>{ const d=await open('#edit-mybar',{'ag-gigs':BAR,'ag-seenWelcome':true});
    d.getElementById('addSong').click(); await sleep(100); d.getElementById('fChart').value='G | D';
    d.getElementById('shade').click(); await sleep(50); ok('editor still open', !!d.getElementById('fChart')&&d.getElementById('fChart').value==='G | D'); }],
+ ['M1 lyrics from the old lyrics app move in', async()=>{
+   const gigs=[{id:'rayna',name:'Rayna',sets:[{name:'',songs:[{title:'Бесен',key:'Dm',capo:'',sections:[{l:'V',c:['│ Dm │']}]}]}]}];
+   const pack={kind:'lyrics-pack',v:2,gigs:[{id:'rayna',name:'Rayna',sets:[{name:'',songs:[{t:'Бесен',x:'a'},{t:'Само текст',x:'b'}]}]},{id:'azzaro',name:'Azzaro',sets:[{name:'',songs:[{t:'Бесен',x:'a'}]}]}],texts:{a:'Куплет\nред едно\n\nПрипев\nприпев ред',b:'само думи'}};
+   const d=await open('#rayna',{'ag-gigs':gigs,'ag-seenWelcome':true,'ly-pack':pack,'ly-note:бесен':JSON.stringify('вдигни тон')}); await sleep(100);
+   const g=JSON.parse(localStorage.getItem('ag-gigs'));
+   ok('lyrics attached', g[0].sets[0].songs[0].lyrics.includes('ред едно'), g[0].sets[0].songs[0]);
+   ok('lyrics-only song added', g[0].sets[0].songs[1]&&g[0].sets[0].songs[1].title==='Само текст');
+   ok('lyrics-only gig added', g.some(x=>x.id==='azzaro'));
+   ok('note moved', JSON.parse(localStorage.getItem('ag-song:rayna:Бесен')||'{}').note==='вдигни тон');
+   ok('only once', localStorage.getItem('ag-lyMerged')==='true'); }],
+ ['M2 Chords | Lyrics switch', async()=>{ const d=await open('#example-3',{'ag-seenWelcome':true});
+   ok('opens in chords', !!d.querySelector('.sec')&&!d.querySelector('.lyrics'));
+   d.querySelector('[data-act="view"][data-v="lyrics"]').click(); await sleep(80);
+   ok('shows lyrics', !!d.querySelector('.lyrics')&&/Amazing grace/.test(d.querySelector('.lyrics').textContent));
+   ok('remembered', JSON.parse(localStorage.getItem('ag-prefs')).view==='lyrics');
+   ok('dock shows speed', /Speed/.test(d.getElementById('tempoLbl').textContent), d.getElementById('tempoLbl').textContent);
+   d.getElementById('tempoBtn').click(); await sleep(50); ok('speed sheet', !!d.getElementById('spd')); d.getElementById('sheetClose').click(); await sleep(50);
+   frame.contentWindow.location.hash='example-1'; await sleep(100);
+   ok('chords-only song falls back to chords', !!d.querySelector('.sec')); }],
+ ['M3 lyrics in the song editor, and found by search', async()=>{ const d=await open('#mybar-1',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100);
+   d.getElementById('fLyrics').value='Verse\nNobody knows the trouble\n\nChorus\nGlory glory'; d.getElementById('fSave').click(); await sleep(150);
+   const x=JSON.parse(localStorage.getItem('ag-gigs'))[0].sets[0].songs[0]; ok('saved', /Glory glory/.test(x.lyrics||''), x);
+   frame.contentWindow.location.hash='mybar'; await sleep(120); const f=d.getElementById('find'); f.value='trouble'; f.dispatchEvent(new Event('input')); await sleep(40);
+   const r=d.querySelector('#listBody .row'); ok('found by a lyric line', r&&/Tune A/.test(r.textContent)&&!!r.querySelector('mark'), r&&r.textContent); }],
+ ['M4 loading an old lyrics file adds the lyrics', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   frame.contentWindow.importText(JSON.stringify({kind:'lyrics-pack',v:2,gigs:[{id:'mybar',name:'Friday Bar',sets:[{name:'',songs:[{t:'tune a',x:'k'}]}]}],texts:{k:'words here'}})); await sleep(150);
+   const x=JSON.parse(localStorage.getItem('ag-gigs'))[0].sets[0].songs[0]; ok('lyrics in', x.lyrics==='words here', x); }],
+ ['M5 coming from the old lyrics address opens lyrics', async()=>{ localStorage.clear(); frame.src='../index.html?view=lyrics#example-3'; await sleep(400);
+   ok('lyrics first', !!frame.contentDocument.querySelector('.lyrics')); }],
 ]);
 </script>

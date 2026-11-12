@@ -183,6 +183,8 @@ function pickSongs(gig,keep){
 /* ---------- lyrics ---------- */
 // Titles match across chords and lyrics whatever the case, spacing or punctuation.
 const norm=t=>String(t).toLowerCase().replace(/[’`]/g,"'").replace(/[^\p{L}\p{N}]/gu,'');
+// Looser match for the same song written two ways: "Wanna" = "want to", "Knockin'" = "knocking".
+const songKey2=t=>norm(String(t).toLowerCase().replace(/\bwanna\b/g,'want to').replace(/\bgonna\b/g,'going to').replace(/\bgotta\b/g,'got to').replace(/(\w)in['’](?=\s|$)/g,'$1ing'));
 const stKey=s=>s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const LABEL_WORDS='chorus|verse|bridge|pre-?chorus|intro|outro|refrain|hook|interlude|coda|tag|solo|припев|куплет|бридж|мост|интро|финал|рефрен|соло';
 // a label may carry a repeat: "Chorus x2", "Припев (2х)", "Chorus ×2"
@@ -223,19 +225,19 @@ function sanitizeLyricsPack(o){
 // Put lyrics into chord gigs. Songs get their lyrics by title (from any lyrics gig); lyrics gigs
 // that aren't here yet come in as new gigs; songs a lyrics gig has that its chord gig lacks are added.
 // editOf(title) may return your own fixed lyrics for a title, which win.
-function mergeLyricsPack(gigs,pack,editOf){
+function mergeLyricsPack(gigs,pack,editOf,replace){
   const out=clone(gigs), own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
   const textOf=x=>{ const e=editOf&&editOf(x.t); if(typeof e==='string'&&e.trim()) return e; return x.x&&own(pack.texts,x.x)?pack.texts[x.x]:''; };
   const byTitle=Object.create(null);
-  pack.gigs.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ const k=norm(x.t), t=textOf(x); if(t&&!(k in byTitle)) byTitle[k]=t; })));
-  const lyr=t=>byTitle[norm(t)]||'';
-  out.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title&&!x.lyrics&&lyr(x.title)) x.lyrics=lyr(x.title); })));
+  pack.gigs.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ const k=songKey2(x.t), t=textOf(x); if(t&&!(k in byTitle)) byTitle[k]=t; })));
+  const lyr=t=>byTitle[songKey2(t)]||'';
+  out.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title&&(replace||!x.lyrics)&&lyr(x.title)) x.lyrics=lyr(x.title); })));
   const toSong=x=>{ const y={title:x.t,key:'',capo:'',sections:[]}; if(x.a) y.artist=x.a; const t=textOf(x)||lyr(x.t); if(t) y.lyrics=t; return y; };
   pack.gigs.forEach(lg=>{
     const g=out.find(e=>e.id===lg.id);
     if(!g){ out.push({id:lg.id,name:lg.name,sets:lg.sets.map(s=>({name:s.name,songs:s.songs.map(toSong)}))}); return; }
-    const have=new Set(); g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title) have.add(norm(x.title)); }));
-    const extra=[]; lg.sets.forEach(s=>s.songs.forEach(x=>{ const k=norm(x.t); if(!have.has(k)){ have.add(k); extra.push(toSong(x)); } }));
+    const have=new Set(); g.sets.forEach(s=>s.songs.forEach(x=>{ if(x.title) have.add(songKey2(x.title)); }));
+    const extra=[]; lg.sets.forEach(s=>s.songs.forEach(x=>{ const k=songKey2(x.t); if(!have.has(k)){ have.add(k); extra.push(toSong(x)); } }));
     if(extra.length){ if(!g.sets.length) g.sets.push({name:'',songs:[]}); g.sets[g.sets.length-1].songs.push(...extra); }
   });
   return out;
