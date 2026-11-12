@@ -1,7 +1,7 @@
 // Offline support. The app is saved on the first visit, so it opens at a venue with no internet.
 // Online it takes the newest version, but if the signal is weak (no answer in 3 s) it opens the saved copy.
-const CACHE='chords-sheet-v2';
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(k=>k.addAll(['./'])).catch(()=>{}).then(()=>self.skipWaiting())));
+const CACHE='chords-sheet-v3';
+self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(k=>k.addAll(['./','manifest.webmanifest','icon-192.png','icon-512.png'])).catch(()=>{}).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE&&/^(chords-sheet|setlists)-/.test(k)).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
   const r=e.request; if(r.method!=='GET') return;
