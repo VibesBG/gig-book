@@ -59,7 +59,7 @@ button,input,textarea{font:inherit;color:inherit}
 .set h2{font-family:var(--f-display);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:20px;
   color:var(--muted);margin:0 0 8px;display:flex;align-items:baseline;gap:10px}
 .set h2 small{font-family:var(--f-body);font-weight:500;font-size:13px;letter-spacing:0;text-transform:none}
-.songs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px}
+.songs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:6px}
 .row{display:flex;align-items:center;gap:12px;text-align:left;width:100%;min-height:56px;padding:10px 14px;
   background:var(--panel);border:1px solid var(--line);border-radius:12px;cursor:pointer}
 .row:active{transform:scale(.99)}
@@ -100,6 +100,8 @@ button,input,textarea{font:inherit;color:inherit}
 .help p{margin:0;color:var(--muted);line-height:1.5}
 .help pre{margin:8px 0;padding:10px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);color:var(--fg);font-family:var(--f-chord);font-size:14px;white-space:pre-wrap}
 .listacts .tbtn{height:44px}
+.backup{display:flex;gap:10px;align-items:center;margin:0 0 12px;padding:10px 12px;border:1px solid var(--accent);border-radius:12px;font-size:14px;color:var(--muted)}
+.backup span{flex:1;min-width:0}.backup .tbtn{flex:none}
 .linkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-weight:600}
 .pick{display:grid;gap:4px;max-height:38vh;overflow:auto;padding:2px}
 .form .pk{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer;color:var(--fg);font-weight:500}
@@ -143,7 +145,8 @@ button,input,textarea{font:inherit;color:inherit}
 .sec-b{min-width:0;display:grid;gap:6px}
 .ln{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .ch{font-family:var(--f-chord);font-weight:700;font-size:calc(21px*var(--scale));line-height:1;
-  padding:.42em .55em;border-radius:8px;background:var(--chip);border:1px solid var(--line);white-space:nowrap;cursor:pointer}
+  padding:.42em .55em;border-radius:8px;background:var(--chip);border:1px solid var(--line);white-space:nowrap;cursor:pointer;max-width:100%}
+@media (max-width:420px){.ch{white-space:normal;overflow-wrap:anywhere}}
 .ch:active{border-color:var(--accent)}
 .rep{font-family:var(--f-chord);font-weight:700;font-size:calc(17px*var(--scale));line-height:1;padding:.45em .6em;border-radius:8px;
   background:var(--accent);color:var(--accent-ink);white-space:nowrap}
@@ -210,7 +213,7 @@ button,input,textarea{font:inherit;color:inherit}
 .bpmrow .tbtn{min-width:64px;justify-content:center}
 .tbtn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;
-  background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+  background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center;width:max-content}
 .toast.on{opacity:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -273,7 +276,9 @@ function useList(id){ LIST=LISTS.find(l=>l.id===id)||LISTS[0]; SETS=LIST.sets; S
 const songKey=s=>'song:'+s.list.id+':'+s.title;
 const sstate=s=>Object.assign({t:0,c:+s.capo||0,bpm:null,played:false,note:''},store.get(songKey(s),{}));
 let warned=0; const warnSave=()=>{ if(Date.now()-warned>5000){ warned=Date.now(); toast(tr(SAVE_FAIL)); } };
-const saveS=(s,patch)=>{const v=Object.assign(sstate(s),patch);if(!store.set(songKey(s),v)) warnSave();return v};
+const changed=()=>store.set('dirty',Date.now());   // something not in a file yet
+const saveS=(s,patch)=>{const raw=Object.assign(store.get(songKey(s),{}),patch);if(!store.set(songKey(s),raw)) warnSave(); else if(Object.keys(patch).some(k=>k!=='played')) changed(); return sstate(s)};
+try{ navigator.storage&&navigator.storage.persist&&navigator.storage.persist(); }catch(e){}   // ask the phone not to clear our data
 
 /* ---------- language ---------- */
 const BG={
@@ -291,7 +296,7 @@ const BG={
  'Keep screen on':'Екранът да не гасне','While this page is open':'Докато приложението е отворено','On':'Вкл','Off':'Изкл','Simplify chords':'Опрости акордите',
  'Sharps or flats':'Диези или бемоли','How transposed chords are spelled':'Как се пишат транспонираните акорди','Auto':'Авто','Language':'Език',
  'Example gig':'Примерно участие','Show it next to your own gigs':'Показвай го до твоите участия','Show':'Показвай','Hide':'Скрий',
- 'My gigs':'Моите участия','Save all your gigs to one file (backup), or load a file':'Запази всичките си участия в един файл (резервно копие) или зареди файл','Save all':'Запази всички','Load':'Зареди','Help':'Помощ','How to use the app':'Как се ползва приложението','Open':'Отвори',
+ 'My gigs':'Моите участия','Save all your gigs to one file (backup), or load a file':'Запази всичките си участия в един файл (резервно копие) или зареди файл','Save all':'Запази всички','Your changes are only on this phone. Save them to a file so you never lose them.':'Промените ти са само на този телефон. Запази ги във файл, за да не ги загубиш.','Load':'Зареди','Help':'Помощ','How to use the app':'Как се ползва приложението','Open':'Отвори',
  'Can’t keep the screen on here — raise Auto-Lock in settings':'Тук екранът не може да остане включен — увеличи автоматичното заключване в настройките','Screen stays on':'Екранът остава включен',
  'Screen lock not allowed here':'Не е позволено тук','Screen can turn off':'Екранът може да изгасне','End of song':'Край на песента','Sound isn’t available here':'Звукът не е наличен тук',
  'Stop':'Стоп','Start':'Старт','Tempo · {0}':'Темпо · {0}','No tempo saved yet — tap or set one':'Още няма темпо — почукай или задай','Tap tempo':'Почукай темпо','Count in 4':'Отброй 4',
@@ -314,7 +319,7 @@ const BG={
  'Songs to send':'Песни за изпращане','All':'Всички','None':'Нито една','Send file':'Изпрати файла','Pick at least one song':'Избери поне една песен',
  'Your key, capo and tempo changes go with the songs. Your notes stay private.':'Твоите промени на тон, капо и темпо отиват с песните. Бележките ти остават лични.','A bandmate':'Колега','Pick Viber, WhatsApp or Messenger, then the person. They save the file and open it with Load a file.':'Избери Viber, WhatsApp или Messenger и човека. Той запазва файла и го отваря със „Зареди файл“.',
  '{0} sent you a gig':'{0} ти изпрати участие','New gig':'Ново участие','Add it':'Добави го','Update it':'Обнови го','and {0} more':'и още {0}',
- 'You already have this gig. Updating it keeps your notes and ✓ marks.':'Вече имаш това участие. Обновяването пази бележките и отметките ти.',
+ 'Songs you have that aren’t in the file stay.':'Песните, които имаш, а ги няма във файла, остават.','You already have this gig. Updating it keeps your notes and ✓ marks.':'Вече имаш това участие. Обновяването пази бележките и отметките ти.',
  'The key, capo and tempo of these songs will match the sender’s.':'Тонът, капото и темпото на тези песни ще са като на изпращача.',
  'Link not working':'Линкът не работи','This link is broken or was cut off. Ask for it again, or ask for the file.':'Линкът е повреден или отрязан. Поискай го отново или поискай файла.',
  'Update your browser to open this link, or ask for the file.':'Обнови браузъра си, за да отвориш този линк, или поискай файла.'
@@ -331,7 +336,7 @@ const HELP={en:[
  ['Make a gig','Tap “Make your own gig” (or ＋ New gig). Give it a name, then add songs. Use ＋ Set and ＋ Break to split it into sets, and ↑ ↓ to change the order.'],
  ['Type a song','Write the section name on its own line, then the chords, separated by |. Add x2 at the end of a line to repeat it.<pre>Verse\nG | D | Am | C  x2\nChorus\nC | G | D | D</pre>Leave an empty line to continue a section without a new name.'],
  ['Key, capo and chords','Key − / + transposes the whole song. Capo − / + keeps the sound and changes the shapes. Tap any chord to see how to play it.'],
- ['Tempo','Tap ♩ to set the tempo, tap along with “Tap tempo”, or start the metronome. “Count in 4” clicks four beats and stops. Tap the dot at the top to stop the click.'],
+ ['Tempo','Tap ♩ to set the tempo, tap along with “Tap tempo”, or start the metronome. “Count in 4” clicks four beats and keeps going. ▶ counts in too and clicks along with the song. Tap the dot at the top to stop the click.'],
  ['On stage','▶ counts you in with four clicks, then follows the song line by line at its tempo: the line you play stays near the top. − / + nudge the tempo. Tap a line to start from it, or to jump there while playing. Songs in 3/4 or 6/8: set Beats in ✎ Edit. Swipe left or right for the next or previous song. A Bluetooth page-turner pedal works too (arrow keys or Page Up / Page Down). Turn on “Keep screen on” in Aa.'],
  ['Add to Home Screen','iPhone/iPad: open in Safari, tap Share, then “Add to Home Screen”. Android: Chrome menu ⋮, then “Add to Home screen”. After the first visit it works without internet.'],
  ['Send to a bandmate','Open a gig and tap ↗ Send. Pick the songs, tap Send file, then choose Viber, WhatsApp or Messenger and the person. They save the file and open it with Load a file; the app asks whether to add the gig. Your key, capo and tempo go with it; your notes stay yours. Send it again after a change and their copy is updated.'],
@@ -341,7 +346,7 @@ const HELP={en:[
  ['Направи участие','Натисни „Направи свое участие“ (или ＋ Ново участие). Дай му име и добави песни. С ＋ Сет и ＋ Почивка го делиш на сетове, а с ↑ ↓ сменяш реда.'],
  ['Въведи песен','Напиши името на частта на отделен ред, после акордите, разделени с |. Добави x2 в края на реда, за да се повтори.<pre>Куплет\nG | D | Am | C  x2\nПрипев\nC | G | D | D</pre>Празен ред продължава частта без ново име.'],
  ['Тон, капо и акорди','Тон − / + транспонира цялата песен. Капо − / + пази звученето и сменя позициите. Натисни акорд, за да видиш как се хваща.'],
- ['Темпо','Натисни ♩, за да зададеш темпо, почукай с „Почукай темпо“ или пусни метронома. „Отброй 4“ брои четири удара и спира. Натисни точката горе, за да спреш метронома.'],
+ ['Темпо','Натисни ♩, за да зададеш темпо, почукай с „Почукай темпо“ или пусни метронома. „Отброй 4“ брои четири удара и продължава. ▶ също отброява и щрака заедно с песента. Натисни точката горе, за да спреш метронома.'],
  ['На сцената','▶ отброява четири удара и после следва песента ред по ред в нейното темпо: редът, който свириш, стои горе. − / + леко сменят темпото. Натисни ред, за да започнеш от него или да скочиш там по време на свирене. Песни в 3/4 или 6/8: задай Удари в ✎ Редактирай. Плъзни наляво или надясно за следваща или предишна песен. Работи и Bluetooth педал за страници (стрелки или Page Up / Page Down). Включи „Екранът да не гасне“ в Aa.'],
  ['Добави на началния екран','iPhone/iPad: отвори в Safari, натисни Сподели, после „Добави към началния екран“. Android: менюто ⋮ в Chrome, после „Добави към началния екран“. След първото отваряне работи и без интернет.'],
  ['Изпрати на колега','Отвори участие и натисни ↗ Изпрати. Избери песните, натисни „Изпрати файла“ и избери Viber, WhatsApp или Messenger и човека. Той запазва файла и го отваря със „Зареди файл“; приложението пита дали да добави участието. Тонът, капото и темпото отиват с него, бележките остават твои. Прати го пак след промяна и копието му се обновява.'],
@@ -461,7 +466,9 @@ function showList(){
     :GIGS.length?'':`<div class="card" id="emptyCard"><h2>${tr('Make it yours')}</h2><p>${tr('This is an example gig. Make your own gig and type your songs in, or load a gig file someone sent you.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make your own gig')}</button><button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div></div>`;
   const acts=GIGS.length?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${LIST.ex?'':`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button><button class="tbtn" data-act="sendgig">${tr('↗ Send')}</button>`}<button class="tbtn" data-act="loadfile">${tr('Load a file')}</button></div>`:'';
-  view.innerHTML='<div class="list">'+sw+empty+acts+find+'<div id="listBody"></div></div>';
+  const unsaved=GIGS.length&&store.get('dirty',0)>store.get('saved',0)?`<div class="backup"><span>${tr('Your changes are only on this phone. Save them to a file so you never lose them.')}</span><button class="tbtn primary" id="bkSave">${tr('Save all')}</button></div>`:'';
+  view.innerHTML='<div class="list">'+sw+empty+acts+unsaved+find+'<div id="listBody"></div></div>';
+  if($('bkSave')) $('bkSave').onclick=()=>saveFile(GIGS,'my-gigs.setlist.json');
   renderListBody();
   view.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{ if(b.dataset.gig!==LIST.id){ query=''; location.hash=b.dataset.gig; } });
   $('find').oninput=e=>{query=e.target.value;renderListBody()};
@@ -505,7 +512,7 @@ function showSong(i){
      <button class="tbtn" data-act="played" aria-pressed="${st.played}">${st.played?tr('✓ Played'):tr('Mark played')}</button>
      ${LIST.ex?'':`<button class="tbtn" data-act="edit">${tr('✎ Edit')}</button>`}
    </div>
-   <p class="sub">${s.artist?`<span><b>${esc(s.artist)}</b></span>`:''}${s.web?`<span class="webflag">${tr('Chart from the internet · check it')}</span>`:''}${st.c?`<span>${tr('Sounds in')} <b>${esc(soundKey)}</b></span>`:''}${st.t||st.c!==c0?`<span>${tr('Original:')} <b>${esc(s.key)}${c0?' '+tr('capo')+' '+c0:''}</b> <button class="tbtn" style="height:30px;padding:0 10px" data-act="reset">${tr('Reset')}</button></span>`:''}<span>${esc(LIST.name)} · ${esc(s.set)} · ${tr('{0} of {1}',s.idx+1,SONGS.length)}</span></p>${s.tip?`<p class="tip">${esc(s.tip[prefs.lang]||s.tip.en||'')}</p>`:''}`;
+   <p class="sub">${s.artist?`<span><b>${esc(s.artist)}</b></span>`:''}${st.c?`<span>${tr('Sounds in')} <b>${esc(soundKey)}</b></span>`:''}${st.t||st.c!==c0?`<span>${tr('Original:')} <b>${esc(s.key)}${c0?' '+tr('capo')+' '+c0:''}</b> <button class="tbtn" style="height:30px;padding:0 10px" data-act="reset">${tr('Reset')}</button></span>`:''}<span>${esc(LIST.name)} · ${esc(s.set)} · ${tr('{0} of {1}',s.idx+1,SONGS.length)}</span></p>${s.tip?`<p class="tip">${esc(s.tip[prefs.lang]||s.tip.en||'')}</p>`:''}`;
   s.sections.forEach(sec=>{
     h+=`<div class="sec${sec.l?'':' cont'}"><div class="sec-l">${esc(sec.l)}</div><div class="sec-b">`+
       sec.c.map(l=>'<div class="ln">'+tokens(l).map(t=>{
@@ -514,7 +521,6 @@ function showSong(i){
       }).join('')+'</div>').join('')+'</div></div>';
   });
   if(!s.sections.length) h+=`<p class="empty">${LIST.ex?'':tr('No chords yet. Tap ✎ Edit to add them.')}</p>`;
-  if(s.web) h+=`<div class="srcs"><b>${tr('Where these chords come from')}</b>${s.webNote?`<p>${esc(s.webNote)}</p>`:''}${(s.sources||[]).filter(u=>/^https?:\/\//i.test(u)).map(u=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\/(www\.)?/,'').slice(0,60))}</a>`).join('')}</div>`;
   h+=`<div class="mynote"><label for="mynote">${tr('My notes')}</label><textarea id="mynote" placeholder="${tr('Cues, who starts, lyrics you forget… (saved on this device)')}">${esc(st.note)}</textarea></div></article>`;
   view.innerHTML=h;
   $('mynote').oninput=e=>saveS(s,{note:e.target.value});
@@ -555,7 +561,7 @@ view.addEventListener('keydown',e=>{ const ch=e.target.closest&&e.target.closest
 function openSheet(title,body,onMount){
   $('sheetHost').innerHTML=`<div class="shade" id="shade"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
     <div class="sheet-h"><h3>${esc(title)}</h3><button class="tool" id="sheetClose" aria-label="${tr('Close')}">✕</button></div>${body}</div></div>`;
-  $('shade').onclick=e=>{ if(e.target.id==='shade') closeSheet(); };
+  $('shade').onclick=e=>{ if(e.target.id==='shade'&&!$('fChart')) closeSheet(); };
   $('sheetClose').onclick=closeSheet;
   if(onMount) onMount();
 }
@@ -616,14 +622,17 @@ if(prefs.theme) document.documentElement.dataset.theme=prefs.theme;
 
 /* ---------- wake lock ---------- */
 let lock=null,wantLock=false;
+async function grabLock(){ const l=await navigator.wakeLock.request('screen'); l.addEventListener('release',()=>{ if(lock===l) lock=null; }); lock=l; }
 async function wakeOn(){
   wantLock=true;
   if(!('wakeLock' in navigator)){toast(tr('Can’t keep the screen on here — raise Auto-Lock in settings'));return}
-  try{ lock=await navigator.wakeLock.request('screen'); lock.addEventListener('release',()=>{lock=null}); toast(tr('Screen stays on')); }
+  try{ await grabLock(); toast(tr('Screen stays on')); }
   catch(e){ lock=null; toast(tr('Screen lock not allowed here')); }
 }
 async function wakeOff(){ wantLock=false; try{ if(lock) await lock.release(); }catch(e){} lock=null; toast(tr('Screen can turn off')); }
-document.addEventListener('visibilitychange',async()=>{ if(wantLock&&document.visibilityState==='visible'&&!lock){ try{lock=await navigator.wakeLock.request('screen')}catch(e){} } });
+document.addEventListener('visibilitychange',async()=>{ if(document.visibilityState!=='visible') return;
+  if(metro.on&&metro.ctx&&metro.next<metro.ctx.currentTime) metro.next=metro.ctx.currentTime+.05;   // no burst of missed clicks
+  if(wantLock&&!lock){ try{await grabLock()}catch(e){} } });
 
 /* ---------- auto-scroll: counts you in, then follows the song one line at a time ---------- */
 let scrolling=false, playTimer=0, playLine=0;
@@ -643,9 +652,9 @@ function startScroll(){
   if(playLine>=lines.length) playLine=0;
   scrolling=true; syncScrollUI(); if(!lock&&!wantLock) wakeOn();
   if(metro.on) metroStop();
-  metro.bpm=bpm; metroStart(true);                 // four clicks…
+  metro.bpm=bpm; metroStart(true); metro.byScroll=true;   // four clicks, then the click keeps going with the song
   glideTo(lines[playLine]);
-  playTimer=setTimeout(()=>playFrom(playLine),4*60000/bpm);   // …then go
+  playTimer=setTimeout(()=>playFrom(playLine),(SONGS[cur].beats||4)*60000/bpm);   // …then go
 }
 function playFrom(i){
   if(!scrolling||cur<0) return;
@@ -654,9 +663,9 @@ function playFrom(i){
   playLine=i; markLine(i,true);
   playTimer=setTimeout(()=>playFrom(i+1),tl[i].beats*60000/songBpm());   // tempo nudges apply from the next line
 }
-function stopScroll(){ scrolling=false; clearTimeout(playTimer); syncScrollUI(); }
+function stopScroll(){ const was=scrolling; scrolling=false; clearTimeout(playTimer); if(was&&metro.on&&metro.byScroll) metroStop(); syncScrollUI(); }
 function syncScrollUI(){ const b=songBpm(); $('scroller').classList.toggle('on',scrolling); $('scrollIcon').textContent=scrolling?'❚❚':'▶'; $('scrollSpd').textContent='♩ '+(b||'–'); }
-function nudgeTempo(d){ if(cur<0) return; const b=songBpm(); if(!b){ openTempo(); return; } saveS(SONGS[cur],{bpm:Math.min(240,Math.max(30,b+d))}); syncScrollUI(); }
+function nudgeTempo(d){ if(cur<0) return; const b=songBpm(); if(!b){ openTempo(); return; } const v=saveS(SONGS[cur],{bpm:Math.min(240,Math.max(30,b+d))}); if(metro.on) metro.bpm=v.bpm; syncScrollUI(); }
 $('scrollBtn').onclick=()=>scrolling?stopScroll():startScroll();
 $('slower').onclick=()=>nudgeTempo(-1);
 $('faster').onclick=()=>nudgeTempo(1);
@@ -674,16 +683,18 @@ function click(time,accent){
 }
 function schedule(){
   const c=metro.ctx;
+  if(metro.next<c.currentTime-.2) metro.next=c.currentTime+.05;
   while(metro.next<c.currentTime+.12){
     click(metro.next,metro.beat===0);
-    metro.next+=60/metro.bpm; metro.beat=(metro.beat+1)%4;
-    if(metro.left>0&&--metro.left===0){ clearInterval(metro.timer); setTimeout(metroStop,Math.max(0,(metro.next-c.currentTime)*1000)); return; }
+    metro.next+=60/metro.bpm; metro.beat=(metro.beat+1)%(metro.per||4);
+    if(metro.left>0&&--metro.left===0){ metro.left=-1; syncMetroUI(); }   // count-in done: keep clicking
   }
 }
-function metroStart(countIn){
+function metroStart(countIn){ metro.byScroll=false;
+  try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(e){}   // iPhone: click even with the silent switch on
   try{ metro.ctx=metro.ctx||new (window.AudioContext||window.webkitAudioContext)(); metro.ctx.resume(); }catch(e){ toast(tr('Sound isn’t available here')); return; }
   clearInterval(metro.timer);
-  metro.on=true; metro.song=SONGS[cur]; metro.beat=0; metro.left=countIn?4:-1; metro.next=metro.ctx.currentTime+.06;
+  metro.on=true; metro.song=SONGS[cur]; metro.beat=0; metro.per=cur>=0&&SONGS[cur].beats||4; metro.left=countIn?metro.per:-1; metro.next=metro.ctx.currentTime+.06;
   metro.timer=setInterval(schedule,25); schedule(); syncMetroUI();
 }
 function metroStop(){ metro.on=false; clearInterval(metro.timer); $('beat').hidden=true; syncMetroUI(); }
@@ -712,7 +723,7 @@ const _close=closeSheet; closeSheet=function(){ _close(); if(cur>=0) rerender();
 let editing=null;
 const gigById=id=>GIGS.find(g=>g.id===id);
 const SAVE_FAIL='Couldn’t save on this device. Is storage full or private browsing on?';
-function commit(gigs){ if(!saveGigs(gigs)){ toast(tr(SAVE_FAIL)); return false; } rebuild(); return true; }
+function commit(gigs){ if(!saveGigs(gigs)){ toast(tr(SAVE_FAIL)); return false; } changed(); rebuild(); return true; }
 const plainSong=x=>{ const y=Object.assign({},x); delete y.set; delete y.idx; delete y.list; delete y.no; return y; };
 function newGig(){
   const g={id:newId(Date.now()),name:tr('My gig'),sets:[{name:'',songs:[]}]};
@@ -772,6 +783,9 @@ function openSongEditor(gigId,song){
       const gigs=edit(sets=>{ if(song){ sets.forEach(st=>{ const i=st.songs.indexOf(song); if(i>=0){ st.songs[i]=data; found=true; } }); }
         else { if(!sets.length) sets.push({name:'',songs:[]}); sets[sets.length-1].songs.push(data); } });
       if(!found||!saveGigs(gigs)){ toast(tr(SAVE_FAIL)); return; }
+      // a new capo or tempo typed in ✎ Edit replaces the one you set with the buttons
+      if(song){ const k='song:'+gigId+':'+song.title, v=store.get(k,null);
+        if(v){ if((+song.capo||0)!==capo) delete v.c; if((+song.bpm||0)!==(+data.bpm||0)) delete v.bpm; store.set(k,v); } }
       // move saved key/capo/notes with the song, but never over another song's saved state
       if(song&&song.title!==title){ const o='song:'+gigId+':'+song.title, n='song:'+gigId+':'+title, v=store.get(o,null);
         if(v!==null&&store.get(n,null)===null&&store.set(n,v)) store.del(o); }
@@ -787,16 +801,33 @@ const today=()=>new Date().toISOString().slice(0,10);
 function downloadJSON(name,obj){
   const text=JSON.stringify(obj,null,1), blob=new Blob([text],{type:'application/json'});
   try{ const f=new File([blob],name,{type:'application/json'});
-    if(navigator.canShare&&navigator.canShare({files:[f]})&&/iPhone|iPad|Android/i.test(navigator.userAgent)){ navigator.share({files:[f],title:name}).catch(()=>{}); return; } }catch(e){}
+    if(navigator.canShare&&navigator.canShare({files:[f]})&&/iPhone|iPad|Android/i.test(navigator.userAgent)){ return navigator.share({files:[f],title:name}).then(()=>true,()=>false); } }catch(e){}
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  return Promise.resolve(true);
 }
 const fileName=n=>(n.replace(/[\\/:*?"<>|]+/g,'').trim()||'gig')+'.setlist.json';
-function saveFile(gigs,name){ downloadJSON(name||fileName(gigs[0].name),makeGigFile(gigs.map(plainGig),today())); }
+// Your own backup: the songs plus your key, capo, tempo and notes for each song.
+function myState(g){ const out={}; songTitles(g).forEach(x=>{ const v=store.get('song:'+g.id+':'+x.title,null); if(!v) return;
+  const o={}; if(+v.t) o.t=+v.t; if(v.c!==undefined&&+v.c!==(+x.capo||0)) o.c=+v.c; if(+v.bpm) o.bpm=+v.bpm; if(v.note) o.note=String(v.note);
+  if(Object.keys(o).length) out[x.title]=o; }); return out; }
+function saveFile(gigs,name){ const songs={}; gigs.forEach(g=>{ const m=myState(g); if(Object.keys(m).length) songs[g.id]=m; });
+  const all=gigs.length===GIGS.length;
+  return downloadJSON(name||fileName(gigs[0].name),Object.assign(makeGigFile(gigs.map(plainGig),today()),{songs}))
+    .then(ok=>{ if(ok&&all){ store.set('saved',Date.now()); if(cur<0&&!editing&&$('listBody')) showList(); } return ok; }); }
+function restoreMine(gigs,songs){
+  if(!songs||typeof songs!=='object') return;
+  gigs.forEach(g=>{ const m=songs[g.id]; if(!m||typeof m!=='object') return; songTitles(g).forEach(x=>{ const v=m[x.title]; if(!v||typeof v!=='object') return;
+    const k='song:'+g.id+':'+x.title, cur=store.get(k,{}), t=parseInt(v.t,10), c=parseInt(v.c,10), b=parseInt(v.bpm,10);
+    if(t>=-11&&t<=11) cur.t=t; if(c>=0&&c<=9) cur.c=c; if(b>=30&&b<=300) cur.bpm=b; if(typeof v.note==='string') cur.note=v.note.slice(0,5000);
+    if(!store.set(k,cur)) warnSave(); }); });
+}
 function pickFile(){ $('gigFile').click(); }
-function finishImport(incoming,mode){
+function finishImport(incoming,mode,songs){
   const before=new Set(GIGS.map(g=>g.id));
+  if(songs) restoreMine(incoming.filter(g=>mode==='replace'||!before.has(g.id)),songs);
   if(!commit(applyImport(GIGS.map(plainGig),incoming,mode))) return;
+  if(songs&&incoming.length>=GIGS.length) store.set('saved',Date.now());   // you just loaded your full backup
   closeSheetQuiet(); toast(incoming.length===1?tr('Loaded 1 gig'):tr('Loaded {0} gigs',incoming.length));
   // open the file's first gig: a new one if it was added, else the one it replaced
   const first=mode==='keep'&&before.has(incoming[0].id)?GIGS.find(g=>!before.has(g.id)):gigById(incoming[0].id);
@@ -807,11 +838,11 @@ function importText(text){
   const v=validateGigFile(o); if(!v.ok){ toast(tr('That isn’t a setlist file')); return; }
   if(o.from!==undefined){ offerGigs(v.gigs,senderName(o.from),o.state); return; }   // a file someone sent with ↗ Send
   const clash=importConflicts(GIGS,v.gigs);
-  if(!clash.length){ finishImport(v.gigs,'keep'); return; }
+  if(!clash.length){ finishImport(v.gigs,'keep',o.songs); return; }
   const names=clash.map(id=>gigById(id).name);
   openSheet(tr('Already on this device'),`<p class="hint" style="margin-bottom:14px">${tr(clash.length===1?'This gig is already here: {0}. Replace it with the file, or keep both?':'These gigs are already here: {0}. Replace them with the file, or keep both?','<b>'+names.map(esc).join(', ')+'</b>')}</p>
     <div class="acts"><button class="tbtn primary" id="impReplace">${tr('Replace')}</button><button class="tbtn" id="impKeep">${tr('Keep both')}</button><button class="tbtn" id="impCancel">${tr('Cancel')}</button></div>`,()=>{
-    $('impReplace').onclick=()=>finishImport(v.gigs,'replace');
+    $('impReplace').onclick=()=>finishImport(v.gigs,'replace',o.songs);
     $('impKeep').onclick=()=>finishImport(v.gigs,'keep');
     $('impCancel').onclick=closeSheetQuiet;
   });
@@ -871,10 +902,10 @@ function offerGigs(gigs,from,state){
   const g=gigs[0], titles=songTitles(g).map(x=>x.title), have=gigs.some(x=>gigById(x.id));
   openSheet(from?tr('{0} sent you a gig',from):tr('New gig'),`<p class="hint" style="margin-bottom:8px"><b style="color:var(--fg);font-size:18px">${esc(g.name)}</b> · ${songsN(titles.length)}</p>
     <ul class="got">${titles.slice(0,8).map(t=>`<li>${esc(t)}</li>`).join('')}${titles.length>8?`<li>${tr('and {0} more',titles.length-8)}</li>`:''}</ul>
-    ${have?`<p class="hint" style="margin-bottom:8px">${tr('You already have this gig. Updating it keeps your notes and ✓ marks.')}</p>`:''}
+    ${have?`<p class="hint" style="margin-bottom:8px">${tr('You already have this gig. Updating it keeps your notes and ✓ marks.')} ${tr('Songs you have that aren’t in the file stay.')}</p>`:''}
     ${state&&Object.keys(state).length?`<p class="hint" style="margin-bottom:14px">${tr('The key, capo and tempo of these songs will match the sender’s.')}</p>`:''}
     <div class="acts"><button class="tbtn primary" id="rAdd">${have?tr('Update it'):tr('Add it')}</button><button class="tbtn" id="rCancel">${tr('Cancel')}</button></div>`,()=>{
-    $('rAdd').onclick=()=>{ applyState(gigs,state); finishImport(gigs,have?'replace':'keep'); };
+    $('rAdd').onclick=()=>{ const gs=gigs.map(x=>{ const l=gigById(x.id); return l?keepMissing(plainGig(l),x,'title'):x; }); applyState(gs,state); finishImport(gs,have?'replace':'keep'); };
     $('rCancel').onclick=closeSheetQuiet;
   });
 }
@@ -906,14 +937,14 @@ document.addEventListener('touchend',e=>{
   if(Math.abs(dx)>70&&Math.abs(dy)<50){ dx<0?$('nextBtn').click():$('prevBtn').click(); }
 },{passive:true});
 document.addEventListener('keydown',e=>{
-  if(e.target.matches&&e.target.matches('input,textarea')) return;
+  if(e.target.matches&&e.target.matches('input,textarea')){ if(e.target.id==='mynote'&&/^Page(Up|Down)$/.test(e.key)) e.target.blur(); else return; }   // a pedal still works after typing a note
   if(e.key==='Escape'){ sheetOpen()?closeSheet():cur>=0&&go(-1); return; }
   if(cur<0||sheetOpen()) return;
   const atBottom=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-4, atTop=window.scrollY<=2;
   if(e.key==='ArrowRight'){e.preventDefault();$('nextBtn').click()}
   else if(e.key==='ArrowLeft'){e.preventDefault();$('prevBtn').click()}
-  else if(e.key==='PageDown'){e.preventDefault(); atBottom?$('nextBtn').click():window.scrollBy(0,window.innerHeight*.75)}
-  else if(e.key==='PageUp'){e.preventDefault(); atTop?$('prevBtn').click():window.scrollBy(0,-window.innerHeight*.75)}
+  else if(e.key==='PageDown'||e.key==='ArrowDown'||(e.key===' '&&e.target===document.body)){e.preventDefault(); atBottom?$('nextBtn').click():window.scrollBy(0,window.innerHeight*.75)}
+  else if(e.key==='PageUp'||e.key==='ArrowUp'){e.preventDefault(); atTop?$('prevBtn').click():window.scrollBy(0,-window.innerHeight*.75)}
   else if(e.key==='s'){ scrolling?stopScroll():startScroll(); }
 });
 

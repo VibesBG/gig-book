@@ -1,5 +1,5 @@
 /* Pure logic shared by the app and the tests. No DOM access here. */
-const CHORD=/^[A-G](#|b)?(maj7|maj9|maj|min|m7|m9|m6|m|dim7|dim|aug|sus2|sus4|sus|add9|add11|5|6|7|9|11|13|\(\+oct\))*(\/[A-G](#|b)?)?$/;
+const CHORD=/^[A-G](#|b)?(maj13|maj11|maj9|maj7|maj|M7|min|m7b5|m11|m9|m7|m6|m|dim7|dim|°7|°|ø7|ø|aug|\+|sus2|sus4|sus|add2|add4|add9|add11|6\/9|b5|#5|b9|#9|#11|b13|5|6|7|9|11|13|\((maj7|\+oct|[#b]?\d+)\))*(\/[A-G](#|b)?)?$/;
 const isChordWord=w=>{const p=w.split(/-|→|\.\.\./).filter(Boolean);return p.length>0&&p.every(x=>CHORD.test(x))};
 function tokens(line){
   const out=[];
@@ -23,7 +23,8 @@ function tokens(line){
 
 /* ---------- typed chart <-> sections ---------- */
 // A chord line has a bar (| or │) or starts with a chord. Anything else is a section label.
-const isChordLine=l=>/[|│]/.test(l)||isChordWord(l.split(/\s+/)[0]);
+const PART_WORD=/^(part|section|част|частта|секция|дял)$/i;
+const isChordLine=l=>{ if(/[|│]/.test(l)) return true; const w=l.split(/\s+/); return isChordWord(w[0])&&!(w.length===2&&PART_WORD.test(w[1])); };
 function parseChart(text){
   const out=[]; let cur=null, blank=false;
   String(text||'').replace(/\r/g,'').split('\n').forEach(raw=>{
@@ -31,7 +32,7 @@ function parseChart(text){
     if(!l){ blank=true; return; }
     if(isChordLine(l)){
       // a bar before the repeat mark keeps "Am/G  /x2/" from reading as a /…/ note
-      let line=l.replace(/\|/g,'│').replace(/\s*\(?\s*[x×]\s*(\d+)\s*\)?\s*$/i,(m,n)=>' │  /x'+n+'/').replace(/│\s*│(  \/x\d+\/)$/,'│$1');
+      let line=l.replace(/\|/g,'│').replace(/\s*\(?\s*(?:[x×х]\s*(\d+)|(\d+)\s*[x×х])\s*\)?\s*$/i,(m,a,b)=>' │  /x'+(a||b)+'/').replace(/│\s*│(  \/x\d+\/)$/,'│$1');
       if(!cur||(blank&&cur.c.length)){ cur={l:'',c:[]}; out.push(cur); }
       cur.c.push(line);
     } else {
@@ -48,7 +49,7 @@ function chartLine(line){
   return body+(m?'  x'+m[2]:'');
 }
 function serializeChart(sections){
-  return (sections||[]).map(s=>[s.l?s.l:null].concat(s.c.map(chartLine)).filter(x=>x!==null).join('\n')).join('\n\n');
+  return (sections||[]).map(s=>[s.l?(isChordLine(s.l)?'['+s.l+']':s.l):null].concat(s.c.map(chartLine)).filter(x=>x!==null).join('\n')).join('\n\n');
 }
 
 /* ---------- gigs and files ---------- */
@@ -84,6 +85,15 @@ function validateGigFile(o){
 }
 const makeGigFile=(gigs,today)=>({kind:'setlists-gigs',v:1,made:today,gigs:clone(gigs)});
 const importConflicts=(existing,incoming)=>incoming.filter(g=>existing.some(e=>e.id===g.id)).map(g=>g.id);
+// Updating a gig from a file someone sent: their songs come in, and songs you have that
+// weren't in the file stay (added at the end), so a partial send never deletes anything.
+function keepMissing(local,incoming,tk){
+  const out=clone(incoming); if(!local) return out;
+  const have=new Set(); out.sets.forEach(s=>s.songs.forEach(x=>{ if(x[tk]!==undefined) have.add(x[tk]); }));
+  const extra=[]; local.sets.forEach(s=>s.songs.forEach(x=>{ if(x[tk]!==undefined&&!have.has(x[tk])){ have.add(x[tk]); extra.push(clone(x)); } }));
+  if(extra.length){ if(!out.sets.length) out.sets.push({name:'',songs:[]}); out.sets[out.sets.length-1].songs.push(...extra); }
+  return out;
+}
 function applyImport(existing,incoming,mode){
   const out=clone(existing);
   clone(incoming).forEach(g=>{
@@ -118,9 +128,18 @@ function unflattenGig(items){
 /* ---------- auto-scroll timing ---------- */
 // One chord box between bar lines = one bar. A ×N repeat plays the bars since the previous
 // repeat (or the start of the line) N times: "│ C │ G │ /x3/ │ D │" = C G C G C G D.
+const BARLIKE=/^(N\.?C\.?|%|[A-H][#b]?[^\s\/]*(\/[A-H][#b]?)?)$/;
 function lineBeats(line,beatsPerBar){
-  let bars=0, group=0;
-  tokens(line).forEach(x=>{ if(x.k==='ch') group++; else if(x.k==='rep'){ bars+=group*(parseInt(x.v.slice(1),10)||1); group=0; } });
+  let bars=0, group=0; const barred=/│/.test(line);
+  String(line).split('│').forEach(seg=>{
+    seg=seg.trim(); if(!seg) return;
+    const r=seg.match(/\/x(\d+)\/\s*$/)||seg.match(/^×\s*(\d+)$/);
+    const body=seg.replace(/\/x\d+\/\s*$/,'').replace(/^×\s*\d+$/,'').trim();
+    // a box is a bar when it holds a chord, even one the app doesn't know, or N.C. or %; words like "riff" don't count
+    const words=body.split(/\s+/).filter(w=>isChordWord(w)||BARLIKE.test(w));
+    if(words.length) group+=barred?1:words.length;   // without bar lines ("G D Am C") each chord is a bar
+    if(r){ bars+=group*(parseInt(r[1],10)||1); group=0; }
+  });
   return Math.max(1,bars+group)*(beatsPerBar||4);
 }
 // Every chord line of the song in screen order, with its start and length in beats.

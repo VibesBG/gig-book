@@ -211,5 +211,41 @@ run([
  ['SH a sent file asks the same way', async()=>{ const d=await open('#mybar',{'ag-seenWelcome':true,'ag-gigs':[{id:'other',name:'Other',sets:[]}]}); const w=frame.contentWindow;
    w.importText(JSON.stringify({kind:'setlists-gigs',v:1,from:'Йонко',gigs:BAR,state:{}})); await sleep(100);
    const h=d.querySelector('.sheet h3'); ok('from Йонко', h&&h.textContent.includes('Йонко'), h&&h.textContent); }],
+ ['N1 no "where these chords come from" box', async()=>{ const web=[{id:'w',name:'W',sets:[{name:'',songs:[{title:'Web',key:'G',capo:'',web:true,sources:['https://x.example/a'],webNote:'n',sections:[{l:'V',c:['G | D']}]}]}]}];
+   const d=await open('#w-1',{'ag-gigs':web,'ag-seenWelcome':true});
+   ok('no sources box', !d.querySelector('.srcs')); ok('no web flag', !d.querySelector('.webflag')); }],
+ ['N2 backup carries key, tempo and notes; reminder comes and goes', async()=>{ const d=await open('#mybar',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   const w=frame.contentWindow; ok('no reminder before changes', !d.getElementById('bkSave'));
+   w.location.hash='mybar-1'; await sleep(150); d.querySelector('[data-act="key+"]').click(); await sleep(50);
+   const n=d.getElementById('mynote'); n.value='slow intro'; n.dispatchEvent(new Event('input')); await sleep(50);
+   w.location.hash='mybar'; await sleep(150); ok('reminder shows', !!d.getElementById('bkSave'));
+   let got=null; w.downloadJSON=(name,o)=>{ got=o; return Promise.resolve(true); };
+   d.getElementById('bkSave').click(); await sleep(150);
+   ok('file has my state', got&&got.songs&&got.songs.mybar&&got.songs.mybar['Tune A'].note==='slow intro', got&&got.songs);
+   ok('reminder gone', !d.getElementById('bkSave'));
+   const file=JSON.stringify(got); localStorage.clear(); const d2=await open('#mybar',{'ag-seenWelcome':true});
+   frame.contentWindow.importText(file); await sleep(200);
+   const st=JSON.parse(localStorage.getItem('ag-song:mybar:Tune A')||'{}'); ok('restored note', st.note==='slow intro', st); ok('restored key', st.t===1, st);
+   ok('no reminder after loading my backup', !d2.getElementById('bkSave')); }],
+ ['N3 count-in keeps clicking', async()=>{ const d=await open('#mybar-1',{'ag-gigs':BAR,'ag-seenWelcome':true,'ag-song:mybar:Tune A':{bpm:240}});
+   const w=frame.contentWindow; if(!(w.AudioContext||w.webkitAudioContext)){ ok('no audio here', true); return; }
+   // headless browsers don't run the audio clock, so drive the scheduler with a fake one
+   w.eval(`metro.ctx={currentTime:10,destination:{},resume(){},createOscillator:()=>({frequency:{},connect:x=>x,start(){},stop(){}}),createGain:()=>({gain:{setValueAtTime(){},exponentialRampToValueAtTime(){}},connect:x=>x})};
+     metro.on=true; metro.bpm=240; metro.per=4; metro.left=4; metro.beat=0; metro.next=10; for(let i=0;i<30;i++){ metro.ctx.currentTime+=.1; schedule(); }`);
+   ok('still on after 4 beats', w.eval('metro.on&&metro.left<0'), w.eval('JSON.stringify({on:metro.on,left:metro.left})')); w.eval('metroStop()'); }],
+ ['N4 update from a partial send keeps my other songs', async()=>{ const three=[{id:'mybar',name:'Friday Bar',sets:[{name:'',songs:['A','B','C'].map(t=>({title:t,key:'G',capo:'',sections:[]}))}]}];
+   const d=await open('#mybar',{'ag-gigs':three,'ag-seenWelcome':true});
+   frame.contentWindow.importText(JSON.stringify({kind:'setlists-gigs',v:1,from:'Йонко',gigs:[{id:'mybar',name:'Friday Bar',sets:[{name:'',songs:[{title:'A',key:'E',capo:'',sections:[]}]}]}],state:{}})); await sleep(100);
+   d.getElementById('rAdd').click(); await sleep(200);
+   const t=JSON.parse(localStorage.getItem('ag-gigs'))[0].sets[0].songs.map(x=>x.title+x.key); ok('A updated, B and C kept', t.join()==='AE,BG,CG', t); }],
+ ['N5 capo and BPM typed in Edit win over old button settings', async()=>{ const g=[{id:'mybar',name:'Friday Bar',sets:[{name:'',songs:[{title:'Tune A',key:'A',capo:'2',bpm:90,sections:[{l:'V',c:['│ A │ D │']}]}]}]}];
+   const d=await open('#mybar-1',{'ag-gigs':g,'ag-seenWelcome':true,'ag-song:mybar:Tune A':{t:0,c:2,bpm:90,played:true,note:'x'}});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100);
+   d.getElementById('fCapo').value='0'; d.getElementById('fBpm').value='120'; d.getElementById('fSave').click(); await sleep(200);
+   const st=JSON.parse(localStorage.getItem('ag-song:mybar:Tune A')); ok('old capo/bpm cleared', st.c===undefined&&st.bpm===undefined&&st.note==='x', st);
+   ok('shows ♩ 120', /120/.test(d.getElementById('scrollSpd').textContent), d.getElementById('scrollSpd').textContent); }],
+ ['N6 a tap outside the song editor keeps the chart', async()=>{ const d=await open('#edit-mybar',{'ag-gigs':BAR,'ag-seenWelcome':true});
+   d.getElementById('addSong').click(); await sleep(100); d.getElementById('fChart').value='G | D';
+   d.getElementById('shade').click(); await sleep(50); ok('editor still open', !!d.getElementById('fChart')&&d.getElementById('fChart').value==='G | D'); }],
 ]);
 </script>
