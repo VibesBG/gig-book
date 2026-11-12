@@ -1,8 +1,8 @@
-# Setlists
+# Chords Sheet
 
 A chord app for playing gigs from your phone or tablet. Make a gig, type your songs in, and play from it on stage.
 
-**Open it:** https://vibesbg.github.io/setlists/
+**Open it:** https://vibesbg.github.io/chords-sheet/
 
 <img src="screenshot.png" alt="A song in the app: key and capo buttons, tempo, and chord charts" width="300"> <img src="screenshot-list.png" alt="The example gig with two sets and a break" width="300">
 

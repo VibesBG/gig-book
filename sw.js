@@ -1,5 +1,5 @@
 // Offline support: always try the network first, fall back to the last saved copy.
-const CACHE='setlists-v1';
+const CACHE='chords-sheet-v1';
 self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',e=>{
